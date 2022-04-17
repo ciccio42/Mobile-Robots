@@ -1,0 +1,15 @@
+<launch>
+  
+    <!--run gazebo-->
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_stage_1.launch" />
+
+    <!--run teleop key-->
+    <!--include file="$(find turtlebot3_teleop)/launch/turtlebot3_teleop_key.launch" /-->
+
+    <!--run rviz-->
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_gazebo_rviz.launch" />
+
+    <!--run random walker node-->
+    <node name="autonomous_robot" pkg="odometry_ex" type="random_walker.py" output="screen"/>
+
+</launch>
