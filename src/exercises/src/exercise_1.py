@@ -68,7 +68,7 @@ def alignement_elapsed(event=None):
 def create_path():
     # create a sequence of waypoits [x,y,theta], with respect to map
     waypoints = []
-    
+    """
     waypoints.append([0.5, 0, 0])
     
     waypoints.append([1.0, 0.0, 0.0])
@@ -79,9 +79,9 @@ def create_path():
     
     waypoints.append([2.5, 0.0, 0.0])
     
-    waypoints.append([3, 0.0, 0.0])
+    waypoints.append([3, 0.0, 0.0])"""
 
-    """    
+    
     # move forward of 0.5 m along the x
     waypoints.append([0.5, 0, 0])
     
@@ -89,7 +89,7 @@ def create_path():
     waypoints.append([0.5, -0.5, -math.pi/2])
     
     # turn left
-    waypoints.append([1.0, 0.5, 0])
+    waypoints.append([1.0, -0.5, 0])
     
     # move forward
     waypoints.append([1.0, 0.0, math.pi/2])
@@ -98,7 +98,7 @@ def create_path():
     waypoints.append([0.5, 0.0, math.pi])
     
     # go to starting point
-    waypoints.append([0, 0.0, math.pi])"""
+    waypoints.append([0, 0.0, math.pi])
 
     return waypoints
 
@@ -144,12 +144,13 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
             pass
         
         # Rotate delta
-        tRz = tf.transformations.rotation_matrix(delta_theta, (0,0,1))[:-1,:-1]
+        tRz = tf.transformations.rotation_matrix(delta_theta, (0,0,1))[:-1,:-1].transpose()
         new_displacement = np.matmul(tRz, np.array([[delta_x, delta_y, 0.0]]).transpose())
+        rospy.loginfo("Command afer alignment: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement[0][0], new_displacement[1][0], delta_theta))
         # set new command
         rospy.sleep(1)
-        v_x = new_displacement[0] / TIME
-        v_y = new_displacement[1] / TIME
+        v_x = new_displacement[0][0] / TIME
+        v_y = new_displacement[1][0] / TIME
         cmd_vel = Twist()
         cmd_vel.linear.x = abs(v_x)
         cmd_vel.linear.y = abs(v_y)
@@ -220,9 +221,8 @@ def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
     """
     rospy.loginfo("\nA_base_footprint_to_odom:\n{}".format(A_base_footprint_to_odom))
     rospy.loginfo("\nA_odom_to_wp:\n{}".format(A_odom_to_wp))
-    """
     rospy.loginfo("\nvA_base_footprint_to_wp:\n{}".format(A_base_footprint_to_wp))
-
+    """
 
     delta_x = A_base_footprint_to_wp[0][3]
     delta_y = A_base_footprint_to_wp[1][3]

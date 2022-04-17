@@ -1,7 +1,6 @@
 #! /usr/bin/python3
 
 # ROS import
-from turtle import pos
 import rospy, rospkg
 import tf
 from tf import TransformListener
@@ -38,6 +37,14 @@ USER_INPUT_VALID = True
 REACHED_WP = True
 ALIGNMENT_COMPLETE = False
 
+# set the mean and std. var for guassian noise
+MEAN = 0.0 # m
+STD_VAR = 0.3 # m 
+
+# set the mean and std.var for rotation
+MEAN_ROT = 0.0 # rad
+STD_VAR_ROT = 0.06 # rad
+
 def timer_elapsed(event=None):
     # stop the robot
     cmd_vel = Twist()
@@ -68,20 +75,7 @@ def alignement_elapsed(event=None):
 def create_path():
     # create a sequence of waypoits [x,y,theta], with respect to map
     waypoints = []
-    
-    waypoints.append([0.5, 0, 0])
-    
-    waypoints.append([1.0, 0.0, 0.0])
-    
-    waypoints.append([1.5, 0.0, 0])
-    
-    waypoints.append([2.0, 0.0, 0.0])
-    
-    waypoints.append([2.5, 0.0, 0.0])
-    
-    waypoints.append([3, 0.0, 0.0])
-
-    """    
+       
     # move forward of 0.5 m along the x
     waypoints.append([0.5, 0, 0])
     
@@ -89,7 +83,7 @@ def create_path():
     waypoints.append([0.5, -0.5, -math.pi/2])
     
     # turn left
-    waypoints.append([1.0, 0.5, 0])
+    waypoints.append([1.0, -0.5, 0])
     
     # move forward
     waypoints.append([1.0, 0.0, math.pi/2])
@@ -98,7 +92,7 @@ def create_path():
     waypoints.append([0.5, 0.0, math.pi])
     
     # go to starting point
-    waypoints.append([0, 0.0, math.pi])"""
+    waypoints.append([0, 0.0, math.pi])
 
     return waypoints
 
@@ -113,8 +107,11 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         # the robot is alligned with the desired orientation
         # go straight
         rospy.loginfo("Going straight.....")
-        v_x = delta_x / TIME
-        v_y = delta_y / TIME
+        # where actually I go due to the noise in the movement model
+        new_displacement_w_noise = [delta_x, delta_y] + np.random.normal(MEAN, STD_VAR, size=2)
+        rospy.loginfo("Command afer noise: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_w_noise[0], new_displacement_w_noise[1], 0.0))
+        v_x = new_displacement_w_noise[0] / TIME
+        v_y = new_displacement_w_noise[1] / TIME
         cmd_vel = Twist()
         cmd_vel.linear.x = abs(v_x)
         cmd_vel.linear.y = abs(v_y)
@@ -127,7 +124,10 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
     else:
         # the robot is not aligned with the target orientation
         rospy.loginfo("Aligning with next wp...")
-        omega = delta_theta / TIME
+        # add noise to ration
+        theta_with_noise = delta_theta + np.random.normal(MEAN_ROT, STD_VAR_ROT)
+        rospy.loginfo("Command rotation after noise: delta_theta {}".format(theta_with_noise))
+        omega = theta_with_noise / TIME
         cmd_vel = Twist()
         cmd_vel.linear.x = 0.0
         cmd_vel.linear.y = 0.0
@@ -144,12 +144,19 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
             pass
         
         # Rotate delta
-        tRz = tf.transformations.rotation_matrix(delta_theta, (0,0,1))[:-1,:-1]
-        new_displacement = np.matmul(tRz, np.array([[delta_x, delta_y, 0.0]]).transpose())
+        tRz = tf.transformations.rotation_matrix(delta_theta, (0,0,1))[:-1,:-1].transpose()
+        # new_displacement_wo_noise -> my belief where I think I am going
+        new_displacement_wo_noise = np.matmul(tRz, np.array([[delta_x, delta_y, 0.0]]).transpose())
+        rospy.loginfo("Command after alignemnt: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_wo_noise[0][0], new_displacement_wo_noise[1][0], 0.0))
         # set new command
         rospy.sleep(1)
-        v_x = new_displacement[0] / TIME
-        v_y = new_displacement[1] / TIME
+        # where actually I go due to the noise in the movement model
+        noise = np.random.normal(MEAN, STD_VAR, size=2)
+        rospy.loginfo("Noise: {}".format(noise))
+        new_displacement_w_noise = [new_displacement_wo_noise[0][0], new_displacement_wo_noise[1][0]] + noise
+        rospy.loginfo("Command after alignemnt noise: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_w_noise[0], new_displacement_w_noise[1], 0.0))
+        v_x = new_displacement_w_noise[0] / TIME
+        v_y = new_displacement_w_noise[1] / TIME
         cmd_vel = Twist()
         cmd_vel.linear.x = abs(v_x)
         cmd_vel.linear.y = abs(v_y)
@@ -171,7 +178,7 @@ def convert_wp_to_pose(waypoint):
     pose.orientation.y = orientation[1]
     pose.orientation.z = orientation[2]
     pose.orientation.w = orientation[3]
-    rospy.loginfo("Waypoint pose {}".format(pose))
+    #rospy.logdebug("Waypoint pose {}".format(pose))
     return pose
 
 def get_current_pose(tf_listener: tf.listener, start_frame:str, end_frame:str) -> Pose:
@@ -218,11 +225,10 @@ def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
     A_base_footprint_to_wp = np.matmul(A_base_footprint_to_odom, A_odom_to_wp)
 
     """
-    rospy.loginfo("\nA_base_footprint_to_odom:\n{}".format(A_base_footprint_to_odom))
-    rospy.loginfo("\nA_odom_to_wp:\n{}".format(A_odom_to_wp))
+    rospy.loginfo("A_base_footprint_to_odom:\n{}".format(A_base_footprint_to_odom))
+    rospy.loginfo("A_odom_to_wp:\n{}".format(A_odom_to_wp))
+    rospy.loginfo("vA_base_footprint_to_wp:\n{}".format(A_base_footprint_to_wp))
     """
-    rospy.loginfo("\nvA_base_footprint_to_wp:\n{}".format(A_base_footprint_to_wp))
-
 
     delta_x = A_base_footprint_to_wp[0][3]
     delta_y = A_base_footprint_to_wp[1][3]
@@ -235,7 +241,7 @@ def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
     return delta_x, delta_y, delta_theta
 
 def main():
-    rospy.init_node("exe_1_node")
+    rospy.init_node("exe_2_node")
     rate = rospy.Rate(0.2)
     
     # marker publisher
@@ -258,13 +264,49 @@ def main():
         key = input("Press any key to continue: ")
 
         rospy.loginfo("Waypoint {} - {}".format(i+1, waypoints[i]))
+        
         # get current robot pose
-        current_pose = get_current_pose(tf_listener, "base_footprint", "odom")
+        if i > 0:
+            # the current pose is equal to the previous waypoint
+            # where I exepect to be, in case of noise-free environment
+            current_pose = convert_wp_to_pose(waypoints[i-1])
+            rospy.logdebug("Previous wp with odom: {}".format(current_pose))
+
+            # convert current_pose_odom into current_pose_base_footprint_odom
+            # create homogeneous transformation matrix from odom
+            A_odom = np.zeros((4,4))
+            A_odom[:3, :3] = tf.transformations.quaternion_matrix([current_pose.orientation.x, current_pose.orientation.y,
+                                                                            current_pose.orientation.z, current_pose.orientation.w])[:3, :3]
+            A_odom[0][3] = current_pose.position.x
+            A_odom[1][3] = current_pose.position.y
+            A_odom[2][3] = current_pose.position.z
+            A_odom[3][3] = 1
+            
+            A_base_footprint_odom = np.zeros((4,4))
+            A_base_footprint_odom[:3,:3] = A_odom[:3,:3].transpose()
+            A_base_footprint_odom[3][3] = 1
+
+            quaternion_base_footprint_to_odom = tf.transformations.quaternion_from_matrix(matrix = A_base_footprint_odom)
+            current_pose.orientation.x = quaternion_base_footprint_to_odom[0]
+            current_pose.orientation.y = quaternion_base_footprint_to_odom[1]
+            current_pose.orientation.z = quaternion_base_footprint_to_odom[2]
+            current_pose.orientation.w = quaternion_base_footprint_to_odom[3]
+
+            position_base_footprint_to_odom = -np.matmul(A_odom[:3,:3].transpose(), 
+                                                        np.array([current_pose.position.x, current_pose.position.y,current_pose.position.z]).transpose())
+            current_pose.position.x = position_base_footprint_to_odom[0]
+            current_pose.position.y = position_base_footprint_to_odom[1]
+            current_pose.position.z = position_base_footprint_to_odom[2]
+            rospy.logdebug("Current pose base_footprint to odom: {}".format(current_pose))
+        elif i == 0:
+            # at the beginning, take the pose from tf
+            current_pose = get_current_pose(tf_listener=tf_listener, start_frame="base_footprint", end_frame="odom")
+        
         # get desired robot pose
         desired_pose = convert_wp_to_pose(waypoints[i])
         # compute the difference between the current pose and the desired one
         delta_x, delta_y, delta_theta = compute_pose_difference(current_pose=current_pose, desired_pose=desired_pose)
-        rospy.loginfo("\n")
+        rospy.loginfo("")
         # compute the time needed to reach the desired pose with a given velocity
         rospy.loginfo("Move toward the waypoint....")
         move_robot(cmd_vel_pub, delta_x, delta_y, delta_theta)
