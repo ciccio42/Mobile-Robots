@@ -1,6 +1,9 @@
+from turtle import distance
+from numpy import angle
 import rospy
 from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Pose
+import math
 
 def create_markers(waypoints):
     marker_array = MarkerArray()
@@ -33,3 +36,9 @@ def create_markers(waypoints):
         m.id = id
         id += 1
     return marker_array
+
+def convert_polar_to_cartesian(ray: float, angle: float):
+    
+    x = ray * math.cos(angle)
+    y = ray * math.sin(angle)
+    return [x,y]
