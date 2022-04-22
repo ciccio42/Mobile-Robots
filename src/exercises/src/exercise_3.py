@@ -41,18 +41,17 @@ ALIGNMENT_COMPLETE = False
 
 # set the mean and std. var for guassian noise
 MEAN = 0.0 # m
-STD_VAR = 0.3 # m 
+STD_VAR = 0.15 # m 
 
 # set the mean and std.var for rotation
 MEAN_ROT = 0.0 # rad
-STD_VAR_ROT = 0.06 # rad
+STD_VAR_ROT = 0.006 # rad
 
 # Initial Pose
 initial_pose = Pose()
 # Distance values at beginning
 initial_measure_cartesian_odom = None
-# Angles of interest
-angles_of_interest = [0, 90, 180, 270] # front, left, behind, right
+initial_measure_polar = None
 
 
 def timer_elapsed(event=None):
@@ -109,7 +108,7 @@ def create_path():
 def spawn_robot():
     pass
 
-def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
+def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angle_x_base_footprint_displacement):
     global REACHED_WP
     REACHED_WP = False
     
@@ -124,7 +123,7 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         v_y = new_displacement_w_noise[1] / TIME
         cmd_vel = Twist()
         cmd_vel.linear.x = abs(v_x)
-        cmd_vel.linear.y = abs(v_y)
+        cmd_vel.linear.y = 0.0
         cmd_vel.linear.z = 0.0
         cmd_vel.angular.x = 0.0
         cmd_vel.angular.y = 0.0
@@ -132,12 +131,14 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         cmd_vel_pub.publish(cmd_vel)
         rospy.Timer(rospy.Duration(secs=TIME),timer_elapsed, oneshot=True)         
     else:
+        #----STEP 1----#
+        # align with the displacement vector
+        rospy.loginfo("Aligning with displacement vector..")
+        angle_x_base_footprint_displacement = angle_x_base_footprint_displacement + np.random.normal(MEAN_ROT, STD_VAR_ROT)
+        rospy.loginfo("Command rotation angle_x_base_footprint_displacement after noise:  {}".format(angle_x_base_footprint_displacement))
         # the robot is not aligned with the target orientation
         rospy.loginfo("Aligning with next wp...")
-        # add noise to ration
-        theta_with_noise = delta_theta + np.random.normal(MEAN_ROT, STD_VAR_ROT)
-        rospy.loginfo("Command rotation after noise: delta_theta {}".format(theta_with_noise))
-        omega = theta_with_noise / TIME
+        omega = angle_x_base_footprint_displacement / TIME
         cmd_vel = Twist()
         cmd_vel.linear.x = 0.0
         cmd_vel.linear.y = 0.0
@@ -152,9 +153,11 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         ALIGNMENT_COMPLETE = False
         while not ALIGNMENT_COMPLETE:
             pass
-        
+
+        #---STEP 2---#
+        # move toward the wp
         # Rotate delta
-        tRz = tf.transformations.rotation_matrix(delta_theta, (0,0,1))[:-1,:-1].transpose()
+        tRz = tf.transformations.rotation_matrix(angle_x_base_footprint_displacement, (0,0,1))[:-1,:-1].transpose()
         # new_displacement_wo_noise -> my belief where I think I am going
         new_displacement_wo_noise = np.matmul(tRz, np.array([[delta_x, delta_y, 0.0]]).transpose())
         rospy.loginfo("Command after alignemnt: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_wo_noise[0][0], new_displacement_wo_noise[1][0], 0.0))
@@ -164,18 +167,41 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         noise = np.random.normal(MEAN, STD_VAR, size=2)
         rospy.loginfo("Noise: {}".format(noise))
         new_displacement_w_noise = [new_displacement_wo_noise[0][0], new_displacement_wo_noise[1][0]] + noise
-        rospy.loginfo("Command after alignemnt noise: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_w_noise[0], new_displacement_w_noise[1], 0.0))
+        rospy.loginfo("Command after alignemnt, with noise: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_w_noise[0], new_displacement_w_noise[1], 0.0))
         v_x = new_displacement_w_noise[0] / TIME
         v_y = new_displacement_w_noise[1] / TIME
         cmd_vel = Twist()
         cmd_vel.linear.x = abs(v_x)
-        cmd_vel.linear.y = abs(v_y)
+        cmd_vel.linear.y = 0.0
         cmd_vel.linear.z = 0.0
         cmd_vel.angular.x = 0.0
         cmd_vel.angular.y = 0.0
         cmd_vel.angular.z = 0.0
         cmd_vel_pub.publish(cmd_vel)
         rospy.Timer(rospy.Duration(secs=TIME),timer_elapsed, oneshot=True)
+        while not REACHED_WP:
+            pass
+
+        #---STEP 3---#
+        # reach wp orientation
+        theta_with_noise = (delta_theta-angle_x_base_footprint_displacement) + np.random.normal(MEAN_ROT, STD_VAR_ROT)
+        rospy.loginfo("Command rotation after noise: delta_theta {}".format(theta_with_noise))
+        omega = theta_with_noise / TIME
+        cmd_vel = Twist()
+        cmd_vel.linear.x = 0.0
+        cmd_vel.linear.y = 0.0
+        cmd_vel.linear.z = 0.0
+        cmd_vel.angular.x = 0.0
+        cmd_vel.angular.y = 0.0
+        cmd_vel.angular.z = omega
+        cmd_vel_pub.publish(cmd_vel)
+        rospy.Timer(rospy.Duration(secs=TIME),alignement_elapsed, oneshot=True)
+        # wait until alignement is not complete
+        ALIGNMENT_COMPLETE = False
+        while not ALIGNMENT_COMPLETE:
+            pass
+        
+        
     
 def convert_wp_to_pose(waypoint):
     pose = Pose()
@@ -245,9 +271,13 @@ def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
     r,p,y = tf.transformations.euler_from_matrix(A_base_footprint_to_wp[:3,:3])
     delta_theta = y
 
+    # compute the yaw that align the robot with the displacement vector
+    angle_x_base_footprint_displacement = math.atan2(delta_y, delta_x)
+    rospy.loginfo("Angle angle_x_base_footprint_displacement {}".format(angle_x_base_footprint_displacement))
+
     rospy.loginfo("Command delta_x {} - delta_y {} - delta_theta {}".format(delta_x, delta_y, delta_theta))
 
-    return delta_x, delta_y, delta_theta
+    return delta_x, delta_y, delta_theta, angle_x_base_footprint_displacement
 
 def get_laser_scan(laser_scan_topic: str):
     
@@ -312,48 +342,65 @@ def measure_world(laser_scan_topic: str, imu_topic: str, tf_listener: tf.listene
     imu_msg = rospy.wait_for_message(imu_topic, Imu) 
 
     # get the orientation from the imu msg
-    if imu_msg.header.frame_id == "base_footprint" and imu_msg.orientation_covariance[0] == -1:
-        robot_pose.orientation.x = imu_msg.orientation.x  
-        robot_pose.orientation.y = imu_msg.orientation.y
-        robot_pose.orientation.z = imu_msg.orientation.z
+    # the goal is to obtain the orientation of odom with respect to base_footprint
+    if imu_msg.header.frame_id == "base_footprint" and imu_msg.orientation_covariance[0] != -1:
+        robot_pose.orientation.x = -imu_msg.orientation.x  
+        robot_pose.orientation.y = -imu_msg.orientation.y
+        robot_pose.orientation.z = -imu_msg.orientation.z
         robot_pose.orientation.w = imu_msg.orientation.w
-
+    
     # convert polar to cartesian
     measures_cartesian = convert_laser_measure_polar_to_cartesian(laser_scan_msg.ranges)
     # convert base_scan to odom
     measures_cartesian_base_footprint = covert_laser_scan_to_frame(tf_listener=tf_listener, measure_base_scan=measures_cartesian, frame="base_footprint")
-    rospy.loginfo("\nCurrent measure  \nfront: {} \nleft: {} \nbehind: {} \nright: {}".format(measures_cartesian_base_footprint[0],
+    rospy.logdebug("\nCurrent measure  \nfront: {} \nleft: {} \nbehind: {} \nright: {}".format(measures_cartesian_base_footprint[0],
                                                                                             measures_cartesian_base_footprint[90],
                                                                                             measures_cartesian_base_footprint[180],
                                                                                             measures_cartesian_base_footprint[270]))
-
-    front_x_base_footprint = measures_cartesian_base_footprint[0] # front is always aligned to x_base_footprint 
-    left_y_base_footprint = measures_cartesian_base_footprint[90] # left is always aligned to y_base_footprint
-
+    
+    # get the position
     _,_, y = tf.transformations.euler_from_quaternion([imu_msg.orientation.x, imu_msg.orientation.y, imu_msg.orientation.z, imu_msg.orientation.w])
-    if (y*360)/(2*math.pi) < 0:     
-        yaw = int(359 - abs((y*360)/(2*math.pi)))
-    else:
-        yaw = int(abs((y*360)/(2*math.pi)))
+    
+    if y < 0: # rotate in clockwise 
+        # the value of interest is in counter-clockwise direction 
+        yaw_index = int(abs((y*360)/(2*math.pi)))
+    else:   # rotate in counter-clockwise
+        # the value of interest is in clockwise direction
+        yaw_index = 359 - int(abs((y*360)/(2*math.pi)))
 
-    rospy.logdebug("\nYaw: {}".format(yaw))
+
     global initial_measure_cartesian_odom
-    if initial_measure_cartesian_odom[yaw][0] == np.inf or initial_measure_cartesian_odom[yaw][0] == nan:
+    # get first measure
+    measure_front_first_odom = initial_measure_cartesian_odom[0]
+    measure_left_first_odom = initial_measure_cartesian_odom[90]
+    # get current measure aligned with odom
+    measure_front_current = measures_cartesian_base_footprint[yaw_index]
+    measure_left_current = measures_cartesian_base_footprint[(90+yaw_index)%359]
+    # align measures with odom
+    rot_matrix = tf.transformations.quaternion_matrix([imu_msg.orientation.x, imu_msg.orientation.y, imu_msg.orientation.z, imu_msg.orientation.w])[:3,:3]
+    measure_front_current_odom = np.matmul(rot_matrix, np.array([measure_front_current]).transpose())
+    measure_front_current_odom = [measure_front_current_odom[0][0], measure_front_current_odom[1][0], measure_front_current_odom[2][0]]
+    measure_left_current_odom = np.matmul(rot_matrix, np.array([measure_left_current]).transpose())
+    measure_left_current_odom = [measure_left_current_odom[0][0], measure_left_current_odom[1][0], measure_left_current_odom[2][0]]
+
+    if (measure_front_current_odom[0] == np.inf or measure_front_current_odom[0] == nan) or \
+        (measure_left_current_odom[0] == np.inf or measure_left_current_odom[0] == nan):
         pass
     else:
-        # compute the position with respect odom
-        rot_matrix = tf.transformations.quaternion_matrix([imu_msg.orientation.x, imu_msg.orientation.y, imu_msg.orientation.z, imu_msg.orientation.w])[:3,:3]
-        rospy.logdebug("\nRotation {}".format(rot_matrix))
-        front_x_odom = np.matmul(rot_matrix, np.array([front_x_base_footprint]).transpose())
-        front_x_odom = np.array([front_x_odom[0][0],front_x_odom[1][0],front_x_odom[2][0]])
-        pos_odom_to_base_footprint = initial_measure_cartesian_odom[yaw] - front_x_odom
-        rospy.logdebug("\nInitial measure odom {}: Front x odom {}".format(initial_measure_cartesian_odom[yaw], front_x_odom))
-        rospy.logdebug("\nPosition base footprint to odom {}".format(pos_odom_to_base_footprint))
+        # compute the difference
+        rospy.logdebug("\nFirst measure front: {}\nFirst measure left: {}\n".format(measure_front_first_odom, measure_left_first_odom))
+        rospy.logdebug("\nCurrent measure front: {}\nCurrent measure left: {}\n".format(measure_front_current_odom, measure_left_current_odom))
+        x_pos_odom = (- measure_front_first_odom + measure_front_current_odom)[0]
+        y_pos_odom = (- measure_left_first_odom + measure_left_current_odom)[1]
+        pos_odom = np.array([x_pos_odom, y_pos_odom, 0.0])
+        rospy.logdebug("\nPosition odom: {}".format(pos_odom))
         
-        # compute the position base_footprint to odom
-        pos_base_footprint_to_odom = np.matmul(rot_matrix.transpose(), np.array([pos_odom_to_base_footprint]).transpose())
-        pos_base_footprint_to_odom = np.array([pos_base_footprint_to_odom[0][0],pos_base_footprint_to_odom[1][0],pos_base_footprint_to_odom[2][0]])
-            
+        # compute the position from base_footprint to odom
+        rot_matrix = tf.transformations.quaternion_matrix([imu_msg.orientation.x, imu_msg.orientation.y, imu_msg.orientation.z, imu_msg.orientation.w])[:3,:3]
+        pos_base_footprint_to_odom = np.matmul(rot_matrix.transpose(), np.array([pos_odom]).transpose())
+        pos_base_footprint_to_odom = np.array([pos_base_footprint_to_odom[0][0],pos_base_footprint_to_odom[1][0],pos_base_footprint_to_odom[2][0]])       
+        rospy.logdebug("\nPosition base_footprint: {}".format(pos_base_footprint_to_odom))
+
     robot_pose.position.x = pos_base_footprint_to_odom[0]
     robot_pose.position.y = pos_base_footprint_to_odom[1]
     robot_pose.position.z = pos_base_footprint_to_odom[2]
@@ -384,7 +431,9 @@ def main():
     global initial_pose
     initial_pose = get_current_pose(tf_listener=tf_listener, start_frame="base_footprint", end_frame="odom")
     # get initial measure
+    global initial_measure_polar
     initial_measure_polar = get_laser_scan("/scan")
+    
     # convert from polar to cartesian
     rospy.logdebug("Initial Measure polar \nfront: {} \nleft: {} \nbehind: {} \nright: {}".format(initial_measure_polar.ranges[0],
                                                                                       initial_measure_polar.ranges[90],
@@ -405,30 +454,23 @@ def main():
     
     for i in range(len(waypoints)):
         
+        # Estimate robot pose with sensors: laser scan and imu
         rospy.loginfo("Estimate robot state with sensor")
         measured_robot_pose = measure_world("/scan", "/imu", tf_listener)
-                
-        rate.sleep()
-
-        key = input("Press any key to continue: ")
-
-        rospy.loginfo("Estimate robot state with sensor")
-        measured_robot_pose = measure_world("/scan", "/imu", tf_listener)
-        
         rospy.loginfo("Estimated robt pose {}".format(measured_robot_pose))
 
-
+        key = input("Press any key to continue: ")
         rospy.loginfo("Waypoint {} - {}".format(i+1, waypoints[i]))
         
         # get desired robot pose
         desired_pose = convert_wp_to_pose(waypoints[i])
         # compute the difference between the current pose and the desired one
-        delta_x, delta_y, delta_theta = compute_pose_difference(current_pose=measured_robot_pose, desired_pose=desired_pose)
-        rospy.loginfo("")
+        delta_x, delta_y, delta_theta,  angle_x_base_footprint_displacement = compute_pose_difference(current_pose=measured_robot_pose, desired_pose=desired_pose)
+        
         # compute the time needed to reach the desired pose with a given velocity
         rospy.loginfo("Move toward the waypoint....")
-        move_robot(cmd_vel_pub, delta_x, delta_y, delta_theta)
-
+        move_robot(cmd_vel_pub, delta_x, delta_y, delta_theta, angle_x_base_footprint_displacement)
+       
         while not REACHED_WP:
             pass
     
