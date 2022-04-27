@@ -9,7 +9,11 @@
     <!--run rviz-->
     <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_gazebo_rviz.launch" />
 
+    <!-- run ekf-->
+    <include file="$(find robot_pose_ekf)/robot_pose_ekf.launch" >
+    </include>
+    
     <!--run walker node-->
-    <node name="ex_3" pkg="exercises" type="exercise_3.py" output="screen"/>
+    <!--node name="ex_4" pkg="exercises" type="exercise_4.py" output="screen"/-->
 
 </launch>

@@ -9,6 +9,7 @@ project(exercises)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
+  sensor_msgs
   std_msgs
 )
 
@@ -161,6 +162,8 @@ include_directories(
 catkin_install_python(PROGRAMS
   src/exercise_1.py
   src/exercise_2.py
+  src/exercise_3.py
+  src/exercise_4.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
