@@ -2,6 +2,9 @@
 
 Repository containing the exercises for the *"Mobile Robots for Critical Mission"* course
 
+* Francesco Rosa, frosa@unisa.it
+* Marco Preziosi, mpreziosi@unisa.it
+
 ## How to run
 ```bash
 cd ~
