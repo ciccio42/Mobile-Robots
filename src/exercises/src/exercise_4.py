@@ -410,24 +410,24 @@ def covert_laser_scan_to_frame(tf_listener: tf.listener , measure_base_scan: np.
     t = tf_listener.getLatestCommonTime(frame, "base_scan")
     position, quaternion = tf_listener.lookupTransform(frame, "base_scan", t)
 
-    A_odom_base_scan = np.zeros((4,4))
+    A_target_base_scan = np.zeros((4,4))
     
-    A_odom_base_scan[:3,:3] = tf.transformations.quaternion_matrix(quaternion)[:3, :3]
-    A_odom_base_scan[0][3] = position[0]
-    A_odom_base_scan[1][3] = position[1]
-    A_odom_base_scan[2][3] = position[2]
-    A_odom_base_scan[3][3] = 1
-    rospy.logdebug("{} to base scan {}".format(frame, A_odom_base_scan))
+    A_target_base_scan[:3,:3] = tf.transformations.quaternion_matrix(quaternion)[:3, :3]
+    A_target_base_scan[0][3] = position[0]
+    A_target_base_scan[1][3] = position[1]
+    A_target_base_scan[2][3] = position[2]
+    A_target_base_scan[3][3] = 1
+    rospy.logdebug("{} to base scan {}".format(frame, A_target_base_scan))
     
-    measaure_cartesian_odom = []
+    measaure_cartesian_target = []
     for measure in  measure_base_scan:
         pos_base_scan = np.array([[measure[0], measure[1], 0, 1]]).transpose()
-        pos_odom = np.matmul(A_odom_base_scan, pos_base_scan)
-        pos_odom = [pos_odom[0][0], pos_odom[1][0], pos_odom[2][0]]
-        measaure_cartesian_odom.append(pos_odom)
+        pos_target = np.matmul(A_target_base_scan, pos_base_scan)
+        pos_target = [pos_target[0][0], pos_target[1][0], pos_target[2][0]]
+        measaure_cartesian_target.append(pos_target)
 
-    measaure_cartesian_odom = np.array(measaure_cartesian_odom)
-    return measaure_cartesian_odom
+    measaure_cartesian_target = np.array(measaure_cartesian_target)
+    return measaure_cartesian_target
 
 def measure_world(laser_scan_topic: str, imu_topic: str, odom_topic: str, tf_listener: tf.listener):
     """Measure the robot pose through sensors
