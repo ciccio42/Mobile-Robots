@@ -96,10 +96,26 @@ def create_path():
 
     return waypoints
 
-def spawn_robot():
-    pass
-
 def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
+    """This function is used to move the robot
+
+    Parameters
+    ----------
+        cmd_vel_pub: rospy.Publisher
+            Command publisher
+
+        delta_x:
+            Displacement to cover along x axis
+        delta_y:
+            Displacement to cover along y axis
+
+        delta_theta:
+            Displacement to cover about z axis
+
+    Returns
+    -------
+        
+    """
     global REACHED_WP
     REACHED_WP = False
     
@@ -107,6 +123,7 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         # the robot is alligned with the desired orientation
         # go straight
         rospy.loginfo("Going straight.....")
+        # adding noise
         # where actually I go due to the noise in the movement model
         new_displacement_w_noise = [delta_x, delta_y] + np.random.normal(MEAN, STD_VAR, size=2)
         rospy.loginfo("Command afer noise: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_w_noise[0], new_displacement_w_noise[1], 0.0))
@@ -145,7 +162,7 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         
         # Rotate delta
         tRz = tf.transformations.rotation_matrix(delta_theta, (0,0,1))[:-1,:-1].transpose()
-        # new_displacement_wo_noise -> my belief where I think I am going
+        # new_displacement_wo_noise -> my belief where I think to be
         new_displacement_wo_noise = np.matmul(tRz, np.array([[delta_x, delta_y, 0.0]]).transpose())
         rospy.loginfo("Command after alignemnt: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_wo_noise[0][0], new_displacement_wo_noise[1][0], 0.0))
         # set new command
@@ -167,8 +184,25 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         cmd_vel_pub.publish(cmd_vel)
         rospy.Timer(rospy.Duration(secs=TIME),timer_elapsed, oneshot=True)
     
-
 def convert_wp_to_pose(waypoint):
+    """This function is used to get the current pose of the robot
+
+    Parameters
+    ----------
+        tf_listener: tf.listener
+            The current robot pose. It is the position and orientation from base_footprint to odom frame
+
+        start_frame: str
+            Frame name with respect to which describe the pose
+
+        end_frame: str
+            Name of the frame that we want to know the pose
+    Returns
+    -------
+        pose: Pose
+            The pose of the end_frame with respect to the start_frame (e.g. odom -> base_footprint)
+            
+    """
     pose = Pose()
     pose.position.x = waypoint[0]
     pose.position.y = waypoint[1]
@@ -182,6 +216,24 @@ def convert_wp_to_pose(waypoint):
     return pose
 
 def get_current_pose(tf_listener: tf.listener, start_frame:str, end_frame:str) -> Pose:
+    """This function is used to get the current pose of the robot
+
+    Parameters
+    ----------
+        tf_listener: tf.listener
+            The current robot pose. It is the position and orientation from base_footprint to odom frame
+
+        start_frame: str
+            Frame name with respect to which describe the pose
+
+        end_frame: str
+            Name of the frame that we want to know the pose
+    Returns
+    -------
+        pose: Pose
+            The pose of the end_frame with respect to the start_frame (e.g. odom -> base_footprint)
+            
+    """
     try:
         t = tf_listener.getLatestCommonTime(start_frame, end_frame)
         position, quaternion = tf_listener.lookupTransform(start_frame, end_frame, t)
@@ -200,6 +252,26 @@ def get_current_pose(tf_listener: tf.listener, start_frame:str, end_frame:str) -
     return pose
 
 def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
+    """This function computes the the difference in position and orientation between the current pose and the desired one, 
+    in order to generate the command
+
+    Parameters
+    ----------
+        current_pose: Pose
+            The current robot pose. It is the position and orientation from base_footprint to odom frame
+
+        desired_pose: Pose
+            Desired robot pose. It is the position and the orientation of the waypoiny with respect the odom frame
+    Returns
+    -------
+        delta_x: float
+            The distance between current position and desired one, along x axis
+        delta_y: float
+            The distance between current position and desired one, along y axis
+        delta_theta: float
+            The difference in orientation between the current position and desired one, about x axis
+            
+    """
     # current pose A{base_footprint}_{odom}
     # desired pose A{odom}_{wp}
 
@@ -224,11 +296,11 @@ def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
     # define the wp with respect to current pose
     A_base_footprint_to_wp = np.matmul(A_base_footprint_to_odom, A_odom_to_wp)
 
-    """
-    rospy.loginfo("A_base_footprint_to_odom:\n{}".format(A_base_footprint_to_odom))
-    rospy.loginfo("A_odom_to_wp:\n{}".format(A_odom_to_wp))
-    rospy.loginfo("vA_base_footprint_to_wp:\n{}".format(A_base_footprint_to_wp))
-    """
+    
+    rospy.logdebug("A_base_footprint_to_odom:\n{}".format(A_base_footprint_to_odom))
+    rospy.logdebug("A_odom_to_wp:\n{}".format(A_odom_to_wp))
+    rospy.logdebug("vA_base_footprint_to_wp:\n{}".format(A_base_footprint_to_wp))
+    
 
     delta_x = A_base_footprint_to_wp[0][3]
     delta_y = A_base_footprint_to_wp[1][3]

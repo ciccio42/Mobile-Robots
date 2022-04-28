@@ -39,11 +39,11 @@ USER_INPUT_VALID = True
 REACHED_WP = True
 ALIGNMENT_COMPLETE = False
 
-# set the mean and std. var for guassian noise
+# set the mean and std. var for guassian noise to apply on computed command
 MEAN = 0.0 # m
-STD_VAR = 0.15 # m 
+STD_VAR = 0.3 # m 
 
-# set the mean and std.var for rotation
+# set the mean and std.var for rotation command
 MEAN_ROT = 0.0 # rad
 STD_VAR_ROT = 0.006 # rad
 
@@ -105,10 +105,26 @@ def create_path():
 
     return waypoints
 
-def spawn_robot():
-    pass
-
 def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angle_x_base_footprint_displacement):
+    """This function is used to move the robot
+
+    Parameters
+    ----------
+        cmd_vel_pub: rospy.Publisher
+            Command publisher
+
+        delta_x:
+            Displacement to cover along x axis
+        delta_y:
+            Displacement to cover along y axis
+
+        delta_theta:
+            Displacement to cover about z axis
+
+    Returns
+    -------
+        
+    """
     global REACHED_WP
     REACHED_WP = False
     
@@ -200,10 +216,20 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angl
         ALIGNMENT_COMPLETE = False
         while not ALIGNMENT_COMPLETE:
             pass
-        
-        
-    
+               
 def convert_wp_to_pose(waypoint):
+    """This function is used to convert the waypoint = [x,y,theta] in a pose
+
+    Parameters
+    ----------
+        waypoint: list
+            Waypoint in input, in the format [x,y,theta]
+    Returns
+    -------
+        pose: Pose
+            Corresponding waypoint pose, defined with respect to odom
+            
+    """
     pose = Pose()
     pose.position.x = waypoint[0]
     pose.position.y = waypoint[1]
@@ -217,6 +243,24 @@ def convert_wp_to_pose(waypoint):
     return pose
 
 def get_current_pose(tf_listener: tf.listener, start_frame:str, end_frame:str) -> Pose:
+    """This function is used to get the current pose of the robot
+
+    Parameters
+    ----------
+        tf_listener: tf.listener
+            The current robot pose. It is the position and orientation from base_footprint to odom frame
+
+        start_frame: str
+            Frame name with respect to which describe the pose
+
+        end_frame: str
+            Name of the frame that we want to know the pose
+    Returns
+    -------
+        pose: Pose
+            The pose of the end_frame with respect to the start_frame (e.g. odom -> base_footprint)
+            
+    """
     try:
         t = tf_listener.getLatestCommonTime(start_frame, end_frame)
         position, quaternion = tf_listener.lookupTransform(start_frame, end_frame, t)
@@ -235,6 +279,26 @@ def get_current_pose(tf_listener: tf.listener, start_frame:str, end_frame:str) -
     return pose
 
 def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
+    """This function computes the the difference in position and orientation between the current pose and the desired one, 
+    in order to generate the command
+
+    Parameters
+    ----------
+        current_pose: Pose
+            The current robot pose. It is the position and orientation from base_footprint to odom frame
+
+        desired_pose: Pose
+            Desired robot pose. It is the position and the orientation of the waypoiny with respect the odom frame
+    Returns
+    -------
+        delta_x: float
+            The distance between current position and desired one, along x axis
+        delta_y: float
+            The distance between current position and desired one, along y axis
+        delta_theta: float
+            The difference in orientation between the current position and desired one, about x axis
+            
+    """
     # current pose A{base_footprint}_{odom}
     # desired pose A{odom}_{wp}
 
@@ -259,11 +323,10 @@ def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
     # define the wp with respect to current pose
     A_base_footprint_to_wp = np.matmul(A_base_footprint_to_odom, A_odom_to_wp)
 
-    """
-    rospy.loginfo("A_base_footprint_to_odom:\n{}".format(A_base_footprint_to_odom))
-    rospy.loginfo("A_odom_to_wp:\n{}".format(A_odom_to_wp))
-    rospy.loginfo("vA_base_footprint_to_wp:\n{}".format(A_base_footprint_to_wp))
-    """
+    rospy.logdebug("A_base_footprint_to_odom:\n{}".format(A_base_footprint_to_odom))
+    rospy.logdebug("A_odom_to_wp:\n{}".format(A_odom_to_wp))
+    rospy.logdebug("vA_base_footprint_to_wp:\n{}".format(A_base_footprint_to_wp))
+    
 
     delta_x = A_base_footprint_to_wp[0][3]
     delta_y = A_base_footprint_to_wp[1][3]
@@ -280,13 +343,33 @@ def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
     return delta_x, delta_y, delta_theta, angle_x_base_footprint_displacement
 
 def get_laser_scan(laser_scan_topic: str):
+    """Get the measure from laser scan
     
+    Parameters
+    ----------
+        laser_scan_topic: str
+            Laser scan topic name
+    Returns
+    -------
+        laser_scan_msg: sensor_msgs.LaserScan
+            Laser scan message
+    """
     laser_scan_msg = rospy.wait_for_message(laser_scan_topic, LaserScan)
 
     return laser_scan_msg
 
 def convert_laser_measure_polar_to_cartesian(measures: np.array):
+    """Convert laser ranges defined in polar coordinates into the corresponding cartesian coordinates
     
+    Parameters
+    ----------
+        measures: np.array
+            array of range measures
+    Returns
+    -------
+        measure_cartesian: list
+            list of tuples (x,y)
+    """   
     measure_cartesian = []
 
     for angle, ray in enumerate(measures):
@@ -297,38 +380,56 @@ def convert_laser_measure_polar_to_cartesian(measures: np.array):
     return measure_cartesian
 
 def covert_laser_scan_to_frame(tf_listener: tf.listener , measure_base_scan: np.array, frame: str):
+    """Convert measures defined in /scan frame, into the target frame frame
+    
+    Parameters
+    ----------
+        tf_listener: tf_listener
+            Transform listener
+        measure_base_scan: np.array
+            Measures defined in /scan frame
+        frame:
+            Target frame, with respect to which define the measures
+    Returns
+    -------
+        measaure_cartesian_target: list
+            list of tuples (x,y) with respect to target frame
+    """   
     t = tf_listener.getLatestCommonTime(frame, "base_scan")
     position, quaternion = tf_listener.lookupTransform(frame, "base_scan", t)
 
-    A_odom_base_scan = np.zeros((4,4))
+    A_target_base_scan = np.zeros((4,4))
     
-    A_odom_base_scan[:3,:3] = tf.transformations.quaternion_matrix(quaternion)[:3, :3]
-    A_odom_base_scan[0][3] = position[0]
-    A_odom_base_scan[1][3] = position[1]
-    A_odom_base_scan[2][3] = position[2]
-    A_odom_base_scan[3][3] = 1
-    rospy.logdebug("{} to base scan {}".format(frame, A_odom_base_scan))
+    A_target_base_scan[:3,:3] = tf.transformations.quaternion_matrix(quaternion)[:3, :3]
+    A_target_base_scan[0][3] = position[0]
+    A_target_base_scan[1][3] = position[1]
+    A_target_base_scan[2][3] = position[2]
+    A_target_base_scan[3][3] = 1
+    rospy.logdebug("{} to base scan {}".format(frame, A_target_base_scan))
     
-    measaure_cartesian_odom = []
+    measaure_cartesian_target = []
     for measure in  measure_base_scan:
         pos_base_scan = np.array([[measure[0], measure[1], 0, 1]]).transpose()
-        pos_odom = np.matmul(A_odom_base_scan, pos_base_scan)
-        pos_odom = [pos_odom[0][0], pos_odom[1][0], pos_odom[2][0]]
-        measaure_cartesian_odom.append(pos_odom)
+        pos_target = np.matmul(A_target_base_scan, pos_base_scan)
+        pos_target = [pos_target[0][0], pos_target[1][0], pos_target[2][0]]
+        measaure_cartesian_target.append(pos_target)
 
-    measaure_cartesian_odom = np.array(measaure_cartesian_odom)
-    return measaure_cartesian_odom
+    measaure_cartesian_target = np.array(measaure_cartesian_target)
+    return measaure_cartesian_target
 
 def measure_world(laser_scan_topic: str, imu_topic: str, tf_listener: tf.listener):
-    """Gets and prints the spreadsheet's header columns
+    """Measure the robot pose through sensors
 
     Parameters
     ----------
         laser_scan_topic: str
-            name of laser scan topic, to get the position of the robot
+            name of laser scan topic, used to get the position of the robot
 
         imu_topic: str
-            name of the imu topic, to get the orientation of the robot
+            name of the imu topic, used to get the orientation of the robot
+
+        tf_listener: tf_listener
+            Transform listener
     Returns
     -------
     
@@ -358,7 +459,7 @@ def measure_world(laser_scan_topic: str, imu_topic: str, tf_listener: tf.listene
                                                                                             measures_cartesian_base_footprint[180],
                                                                                             measures_cartesian_base_footprint[270]))
     
-    # get the position
+    # get the rotation about y
     _,_, y = tf.transformations.euler_from_quaternion([imu_msg.orientation.x, imu_msg.orientation.y, imu_msg.orientation.z, imu_msg.orientation.w])
     
     if y < 0: # rotate in clockwise 
