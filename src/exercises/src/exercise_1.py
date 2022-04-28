@@ -105,25 +105,66 @@ def create_path():
 def spawn_robot():
     pass
 
-def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
-    global REACHED_WP
-    REACHED_WP = False
+def trapezoidal_motion(cmd_vel_pub: rospy.Publisher,delta_x):
+    vel_c = 0.2
+    t_f = 5.0
+    pos_i = 0
+    pos_f = delta_x
+
+    t_c = (pos_i-pos_f + (vel_c * t_f))/(vel_c)
+    acc_c = (vel_c**2 ) /(pos_i-pos_f + (vel_c * t_f))
+    t_c = rospy.Duration(t_c).to_sec()
+    t_f = rospy.Duration(t_f).to_sec()
     
-    if abs(delta_theta) < 10**-3: # delta_theta is equal to zero
-        # the robot is alligned with the desired orientation
-        # go straight
-        rospy.loginfo("Going straight.....")
-        v_x = delta_x / TIME
-        v_y = delta_y / TIME
+    rospy.logdebug(f"t_c:{t_c} - acc_c: {acc_c}")
+
+    
+    start = rospy.Time.now().to_sec()
+    v_k_prec = 0 
+    v_k = 0
+    t_prec = rospy.Time.now().to_sec()
+    
+    r = rospy.Rate(30)
+    while (rospy.Time.now().to_sec() - start) < t_f:
+
+        if 0 < (rospy.Time.now().to_sec() - start) < (t_c):
+            v_k = v_k_prec + (acc_c * (rospy.Time.now().to_sec() - t_prec))
+            rospy.logdebug(f"acc con v: {v_k} -- {rospy.Time.now().to_sec() - t_prec}")
+            t_prec = rospy.Time.now().to_sec()
+            v_k_prec = v_k
+        elif (t_c) < (rospy.Time.now().to_sec() - start) < (t_f - t_c):
+            v_k = v_k_prec
+            t_prec = rospy.Time.now().to_sec()
+            rospy.logdebug(f"cost con v: {v_k}")
+
+        elif ((t_f - t_c) < (rospy.Time.now().to_sec() - start) < (t_f)):
+            v_k = v_k_prec - (acc_c * (rospy.Time.now().to_sec()- t_prec))
+            t_prec = rospy.Time.now().to_sec()
+            rospy.logdebug(f"dec con v: {v_k}")
+            v_k_prec = v_k
+    
         cmd_vel = Twist()
-        cmd_vel.linear.x = abs(v_x)
-        cmd_vel.linear.y = abs(v_y)
+        cmd_vel.linear.x = abs(v_k)
+        cmd_vel.linear.y = 0.0
         cmd_vel.linear.z = 0.0
         cmd_vel.angular.x = 0.0
         cmd_vel.angular.y = 0.0
         cmd_vel.angular.z = 0.0
         cmd_vel_pub.publish(cmd_vel)
-        rospy.Timer(rospy.Duration(secs=TIME),timer_elapsed, oneshot=True)         
+        
+        r.sleep()
+    timer_elapsed()
+
+def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
+    global REACHED_WP
+    REACHED_WP = False
+
+    
+    if abs(delta_theta) < 10**-3: # delta_theta is equal to zero
+        # the robot is alligned with the desired orientation
+        # go straight
+        rospy.loginfo("Going straight with trapezoidal motion.....")
+        trapezoidal_motion(cmd_vel_pub, delta_x)
     else:
         # the robot is not aligned with the target orientation
         rospy.loginfo("Aligning with next wp...")
@@ -151,15 +192,8 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         rospy.sleep(1)
         v_x = new_displacement[0][0] / TIME
         v_y = new_displacement[1][0] / TIME
-        cmd_vel = Twist()
-        cmd_vel.linear.x = abs(v_x)
-        cmd_vel.linear.y = abs(v_y)
-        cmd_vel.linear.z = 0.0
-        cmd_vel.angular.x = 0.0
-        cmd_vel.angular.y = 0.0
-        cmd_vel.angular.z = 0.0
-        cmd_vel_pub.publish(cmd_vel)
-        rospy.Timer(rospy.Duration(secs=TIME),timer_elapsed, oneshot=True)
+        trapezoidal_motion(cmd_vel_pub, new_displacement[0][0])
+
     
 
 def convert_wp_to_pose(waypoint):
