@@ -53,7 +53,7 @@ STD_VAR_ROT = 0.006 # rad
 MEAN_X = 0.0
 STD_VAR_X = 0.3
 MEAN_Y = 0.0
-STD_VAR_Y = 0.05
+STD_VAR_Y = 0.3
 MEAN_ORIENTATION_IMU = 0.0
 STD_VAR_ORIENTATION_IMU = 0.01
 
@@ -65,8 +65,8 @@ initial_measure_polar = None
 # counter for estimated pose with sensor
 seq_cnt = 0
 
-# Initial State
-odometry_estimated_state = Odometry() 
+# Robot State based on motion model
+motion_model_estimated_state = Odometry() 
 
 
 def timer_elapsed(event=None):
@@ -483,8 +483,8 @@ def measure_world(laser_scan_topic: str, imu_topic: str, odom_topic: str, tf_lis
     Returns
     -------
     
-        robot_pose: Pose
-            Estimated robot pose
+        measured_robot_state: Odometry
+            Measure robot state, rappresented thorugh Odometry message
 
     """
 
@@ -584,27 +584,29 @@ def measure_world(laser_scan_topic: str, imu_topic: str, odom_topic: str, tf_lis
         else:
             robot_pose_with_covariance.covariance[diagonal_index] = robot_pose_with_covariance.covariance[diagonal_index] + (STD_VAR_ORIENTATION_IMU**2)
 
-    rospy.loginfo("Combined pose with covariance: {}".format(robot_pose_with_covariance))
+    rospy.loginfo("Measured robot pose with covariance: {}".format(robot_pose_with_covariance))
 
-    return robot_pose_with_covariance, odom_msg.twist
-
-def update_with_ekf(robot_pose_with_covariance: PoseWithCovariance, robot_twist_with_covariance: TwistWithCovariance, odom_combined_pub: rospy.Publisher):
-    # create odometry message
-    odom_combined_msg = Odometry()
+    measured_robot_state = Odometry()
+    measured_robot_state.pose = robot_pose_with_covariance
+    measured_robot_state.twist = odom_msg.twist
     # Header
     global seq_cnt
-    odom_combined_msg.header.seq = seq_cnt
+    measured_robot_state.header.seq = seq_cnt
     seq_cnt += 1
-    odom_combined_msg.header.stamp = rospy.Time.now()
-    odom_combined_msg.header.frame_id = "odom"
+    measured_robot_state.header.stamp = rospy.Time.now()
+    measured_robot_state.header.frame_id = "odom"
     # child_frame_id
-    odom_combined_msg.child_frame_id = "base_footprint"
-    # pose
-    odom_combined_msg.pose = robot_pose_with_covariance
-    # twist
-    odom_combined_msg.twist = robot_twist_with_covariance
-    # PUBLISH
-    odom_combined_pub.publish(odom_combined_msg)
+    measured_robot_state.child_frame_id = "base_footprint"
+    return measured_robot_state
+
+def update_with_ekf(measured_robot_state: Odometry, motion_model_estimated_state: Odometry,
+                    motion_model_state_pub: rospy.Publisher, measured_state_pub: rospy.Publisher, use_robot_pose_ekf = True):
+    
+    # PUBLISH Estimated robot state
+    motion_model_state_pub.publish(motion_model_estimated_state)
+    
+    # PUBLISH Measured robot state
+    measured_state_pub.publish(measured_robot_state)
 
     ekf_pose = rospy.loginfo("Waiting for ekf filter...")
     ekf_pose = rospy.wait_for_message("/robot_pose_ekf/odom_combined", PoseWithCovarianceStamped)
@@ -637,7 +639,7 @@ def update_with_ekf(robot_pose_with_covariance: PoseWithCovariance, robot_twist_
     return estimated_robot_pose
 
 def initialize_robot_state(tf_listener: tf.listener):
-    """Initialize the robot state by setting the motion_model_estimated_state global variable
+    """Initialize the robot state by setting the motion_model_estimated_state and initial_measure_cartesian_odom global variables
 
     Parameters
     ----------
@@ -668,9 +670,33 @@ def initialize_robot_state(tf_listener: tf.listener):
     motion_model_estimated_state.twist.twist.angular.z = 0.0
     motion_model_estimated_state.twist.covariance = list(np.zeros(36, np.float64))
     #---- Header ----#
+    global seq_cnt
+    motion_model_estimated_state.header.seq = seq_cnt
     motion_model_estimated_state.header.stamp = rospy.Time.now()
     motion_model_estimated_state.header.frame_id='odom'
     motion_model_estimated_state.child_frame_id='base_footprint'
+
+    # get initial measure
+    global initial_measure_polar
+    initial_measure_polar = get_laser_scan("/scan")
+
+    # convert from polar to cartesian
+    rospy.logdebug("Initial Measure polar \nfront: {} \nleft: {} \nbehind: {} \nright: {}".format(initial_measure_polar.ranges[0],
+                                                                                      initial_measure_polar.ranges[90],
+                                                                                      initial_measure_polar.ranges[180],
+                                                                                      initial_measure_polar.ranges[270]))
+    initial_measure_cartesian = convert_laser_measure_polar_to_cartesian(initial_measure_polar.ranges) # defined with respect to laser scan
+    rospy.logdebug("Initial Measure cartesian \nfront: {} \nleft: {} \nbehind: {} \nright: {}".format(initial_measure_cartesian[0],
+                                                                                      initial_measure_cartesian[90],
+                                                                                      initial_measure_cartesian[180],
+                                                                                      initial_measure_cartesian[270]))
+    # convert from laser scan to odom
+    global initial_measure_cartesian_odom
+    initial_measure_cartesian_odom = covert_laser_scan_to_frame(tf_listener, initial_measure_cartesian, "odom")
+    rospy.logdebug("Initial Measure odom \nfront: {} \nleft: {} \nbehind: {} \nright: {}".format(initial_measure_cartesian_odom[0],
+                                                                                      initial_measure_cartesian_odom[90],
+                                                                                      initial_measure_cartesian_odom[180],
+                                                                                      initial_measure_cartesian_odom[270]))
 
 def update_state(waypoint):
     """Update the robot state by setting the motion_model_estimated_state global variable
@@ -710,9 +736,9 @@ def update_state(waypoint):
     motion_model_estimated_state.twist.covariance = list(np.zeros(36, np.float64))
     motion_model_estimated_state.header.stamp = rospy.Time.now()
     rospy.loginfo("Update state based on motion model: {}".format(motion_model_estimated_state))
+
 def main():
     rospy.init_node("exe_4_node")
-    rate = rospy.Rate(1)
     
     # marker publisher
     marker_array_pub = rospy.Publisher('/visualization_marker_array', MarkerArray, queue_size=10)
@@ -722,8 +748,10 @@ def main():
 
     tf_listener.waitForTransform("/odom", "/imu_link", rospy.Time(), rospy.Duration(20.0))
     
-    # combined odom publisher 
-    odom_combined_pub = rospy.Publisher('turtlebot/laser_scan_pose', Odometry, queue_size=10)
+    # motion model robot state publisher
+    measured_state_pub = rospy.Publisher('turtlebot/laser_scan_pose', Odometry, queue_size=10)
+    # measured robot state publisher 
+    motion_model_state_pub = rospy.Publisher('turtlebot/motion_model_pose', Odometry, queue_size=10)
 
     # get the path
     waypoints = create_path()
@@ -735,9 +763,19 @@ def main():
     
 
     for i in range(len(waypoints)):
-        robot_pose_with_covariance, robot_twist_with_covariance = measure_world("/scan", "/imu", "/odom",tf_listener)
-        robot_pose = update_with_ekf(robot_pose_with_covariance, robot_twist_with_covariance, odom_combined_pub)
-        rospy.loginfo("Estimated robot pose {}".format(robot_pose))
+        if i == 0:
+            # Prediciton step
+            # initialize robot state
+            initialize_robot_state(tf_listener=tf_listener)
+        
+        # Compute measured robot state
+        measured_robot_state = measure_world("/scan", "/imu", "/odom",tf_listener)
+        # Update step
+        global motion_model_estimated_state
+        robot_pose = update_with_ekf(measured_robot_state=measured_robot_state, motion_model_estimated_state=motion_model_estimated_state,
+                                    motion_model_state_pub=motion_model_state_pub, measured_state_pub=measured_state_pub)
+        
+        rospy.loginfo("Estimated robot state through ekf {}".format(robot_pose))
         key = input("Press any key to continue: ")
         rospy.loginfo("Waypoint {} - {}".format(i+1, waypoints[i]))
         

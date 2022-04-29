@@ -25,7 +25,7 @@ start_position.position.y = 0.0
 start_position.position.z = 0.0
 start_position.orientation.w = 1.0
 
-# Initial State
+# Robot State based on motion model
 motion_model_estimated_state = Odometry() 
 
 # create cmd_vel publisher
