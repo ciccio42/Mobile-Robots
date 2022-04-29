@@ -65,6 +65,10 @@ initial_measure_polar = None
 # counter for estimated pose with sensor
 seq_cnt = 0
 
+# Initial State
+odometry_estimated_state = Odometry() 
+
+
 def timer_elapsed(event=None):
     # stop the robot
     cmd_vel = Twist()
@@ -632,6 +636,80 @@ def update_with_ekf(robot_pose_with_covariance: PoseWithCovariance, robot_twist_
 
     return estimated_robot_pose
 
+def initialize_robot_state(tf_listener: tf.listener):
+    """Initialize the robot state by setting the motion_model_estimated_state global variable
+
+    Parameters
+    ----------
+        tf_listener: tf_listener
+            Transform listener
+    Returns
+    -------
+    
+    """
+
+    # get the initial pose from base_footprint to odom
+    global initial_pose
+    initial_pose = get_current_pose(tf_listener=tf_listener, start_frame="base_footprint", end_frame="odom")
+    # Initialize the motion_model_estimated_state with the supposed known initial position
+    global motion_model_estimated_state
+    #----INITIAL POSE----#
+    motion_model_estimated_state.pose = PoseWithCovariance()
+    motion_model_estimated_state.pose.pose = initial_pose
+    # The covariance is zero during the initialization, since we suppose to know the initial position
+    motion_model_estimated_state.pose.covariance = list(np.zeros(36, np.float64))
+    #----INITIAL TWIST----#
+    motion_model_estimated_state.twist.twist = Twist()
+    motion_model_estimated_state.twist.twist.linear.x = 0.0
+    motion_model_estimated_state.twist.twist.linear.y = 0.0
+    motion_model_estimated_state.twist.twist.linear.z = 0.0
+    motion_model_estimated_state.twist.twist.angular.x = 0.0
+    motion_model_estimated_state.twist.twist.angular.y = 0.0
+    motion_model_estimated_state.twist.twist.angular.z = 0.0
+    motion_model_estimated_state.twist.covariance = list(np.zeros(36, np.float64))
+    #---- Header ----#
+    motion_model_estimated_state.header.stamp = rospy.Time.now()
+    motion_model_estimated_state.header.frame_id='odom'
+    motion_model_estimated_state.child_frame_id='base_footprint'
+
+def update_state(waypoint):
+    """Update the robot state by setting the motion_model_estimated_state global variable
+
+    Parameters
+    ----------
+        tf_listener: tf_listener
+            Transform listener
+    Returns
+    -------
+    
+    """
+    # The estimate pose is equal to the previous waypoint
+    # where I exepect to be, in case of noise-free environment
+    pose_motion_model = convert_wp_to_pose(waypoint)
+    rospy.logdebug("Previous wp with odom: {}".format(pose_motion_model))    
+    
+    global motion_model_estimated_state
+    #---- POSE----#
+    motion_model_estimated_state.pose.pose = pose_motion_model
+    # update the covariance matrix
+    # we suppose that the error on the different axis is i.i.d (indipendent and equally distributed)
+    for i in range(6):
+        diagonal_index = (i*6)+i
+        if i < 3:
+            motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + (STD_VAR**2)
+        else:
+            motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + (STD_VAR_ROT**2)
+    #---- TWIST---#
+    motion_model_estimated_state.twist.twist = Twist()
+    motion_model_estimated_state.twist.twist.linear.x = 0.0
+    motion_model_estimated_state.twist.twist.linear.y = 0.0
+    motion_model_estimated_state.twist.twist.linear.z = 0.0
+    motion_model_estimated_state.twist.twist.angular.x = 0.0
+    motion_model_estimated_state.twist.twist.angular.y = 0.0
+    motion_model_estimated_state.twist.twist.angular.z = 0.0
+    motion_model_estimated_state.twist.covariance = list(np.zeros(36, np.float64))
+    motion_model_estimated_state.header.stamp = rospy.Time.now()
+    rospy.loginfo("Update state based on motion model: {}".format(motion_model_estimated_state))
 def main():
     rospy.init_node("exe_4_node")
     rate = rospy.Rate(1)
@@ -655,31 +733,7 @@ def main():
 
     rospy.loginfo("Start following the planned trajectory")
     
-    # get the initial pose from base_footprint to odom
-    global initial_pose
-    initial_pose = get_current_pose(tf_listener=tf_listener, start_frame="base_footprint", end_frame="odom")
-    # get initial measure
-    global initial_measure_polar
-    initial_measure_polar = get_laser_scan("/scan")
-    
-    # convert from polar to cartesian
-    rospy.logdebug("Initial Measure polar \nfront: {} \nleft: {} \nbehind: {} \nright: {}".format(initial_measure_polar.ranges[0],
-                                                                                      initial_measure_polar.ranges[90],
-                                                                                      initial_measure_polar.ranges[180],
-                                                                                      initial_measure_polar.ranges[270]))
-    initial_measure_cartesian = convert_laser_measure_polar_to_cartesian(initial_measure_polar.ranges) # defined with respect to laser scan
-    rospy.logdebug("Initial Measure cartesian \nfront: {} \nleft: {} \nbehind: {} \nright: {}".format(initial_measure_cartesian[0],
-                                                                                      initial_measure_cartesian[90],
-                                                                                      initial_measure_cartesian[180],
-                                                                                      initial_measure_cartesian[270]))
-    # convert from laser scan to odom
-    global initial_measure_cartesian_odom
-    initial_measure_cartesian_odom = covert_laser_scan_to_frame(tf_listener, initial_measure_cartesian, "odom")
-    rospy.logdebug("Initial Measure odom \nfront: {} \nleft: {} \nbehind: {} \nright: {}".format(initial_measure_cartesian_odom[0],
-                                                                                      initial_measure_cartesian_odom[90],
-                                                                                      initial_measure_cartesian_odom[180],
-                                                                                      initial_measure_cartesian_odom[270]))
-    
+
     for i in range(len(waypoints)):
         robot_pose_with_covariance, robot_twist_with_covariance = measure_world("/scan", "/imu", "/odom",tf_listener)
         robot_pose = update_with_ekf(robot_pose_with_covariance, robot_twist_with_covariance, odom_combined_pub)

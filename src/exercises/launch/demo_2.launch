@@ -10,6 +10,6 @@
     <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_gazebo_rviz.launch" />
 
     <!--run walker node-->
-    <node name="ex_2" pkg="exercises" type="exercise_2.py" output="screen">
+    <node name="ex_2" pkg="exercises" type="exercise_2.py" output="screen" />
 
 </launch>

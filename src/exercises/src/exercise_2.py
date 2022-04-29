@@ -5,7 +5,9 @@ import rospy, rospkg
 import tf
 from tf import TransformListener
 from visualization_msgs.msg import MarkerArray
-from geometry_msgs.msg import PointStamped, Pose, Twist
+from geometry_msgs.msg import PointStamped, Pose, Twist, PoseWithCovariance
+from nav_msgs.msg import Odometry
+
 
 import os, sys
 import math
@@ -23,6 +25,9 @@ start_position.position.y = 0.0
 start_position.position.z = 0.0
 start_position.orientation.w = 1.0
 
+# Initial State
+motion_model_estimated_state = Odometry() 
+
 # create cmd_vel publisher
 cmd_vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
 
@@ -37,7 +42,7 @@ USER_INPUT_VALID = True
 REACHED_WP = True
 ALIGNMENT_COMPLETE = False
 
-# set the mean and std. var for guassian noise
+# set the mean and std. var for guassian noise on linear motion model
 MEAN = 0.0 # m
 STD_VAR = 0.3 # m 
 
@@ -268,7 +273,7 @@ def get_current_pose(tf_listener: tf.listener, start_frame:str, end_frame:str) -
     try:
         t = tf_listener.getLatestCommonTime(start_frame, end_frame)
         position, quaternion = tf_listener.lookupTransform(start_frame, end_frame, t)
-        rospy.loginfo("Current robot pose with respect to {}:\n position {}\n Quaternion {}".format(end_frame, position, quaternion))    
+        rospy.logdebug("Current robot pose with respect to {}:\n position {}\n Quaternion {}".format(end_frame, position, quaternion))    
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
         rospy.logerr("Lookup Transform failed")
 
@@ -343,6 +348,81 @@ def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
 
     return delta_x, delta_y, delta_theta
 
+def initialize_robot_state(tf_listener: tf.listener):
+    """Initialize the robot state by setting the motion_model_estimated_state global variable
+
+    Parameters
+    ----------
+        tf_listener: tf_listener
+            Transform listener
+    Returns
+    -------
+    
+    """
+
+    # get the initial pose from base_footprint to odom
+    global initial_pose
+    initial_pose = get_current_pose(tf_listener=tf_listener, start_frame="base_footprint", end_frame="odom")
+    # Initialize the motion_model_estimated_state with the supposed known initial position
+    global motion_model_estimated_state
+    #----INITIAL POSE----#
+    motion_model_estimated_state.pose = PoseWithCovariance()
+    motion_model_estimated_state.pose.pose = initial_pose
+    # The covariance is zero during the initialization, since we suppose to know the initial position
+    motion_model_estimated_state.pose.covariance = list(np.zeros(36, np.float64))
+    #----INITIAL TWIST----#
+    motion_model_estimated_state.twist.twist = Twist()
+    motion_model_estimated_state.twist.twist.linear.x = 0.0
+    motion_model_estimated_state.twist.twist.linear.y = 0.0
+    motion_model_estimated_state.twist.twist.linear.z = 0.0
+    motion_model_estimated_state.twist.twist.angular.x = 0.0
+    motion_model_estimated_state.twist.twist.angular.y = 0.0
+    motion_model_estimated_state.twist.twist.angular.z = 0.0
+    motion_model_estimated_state.twist.covariance = list(np.zeros(36, np.float64))
+    #---- Header ----#
+    motion_model_estimated_state.header.stamp = rospy.Time.now()
+    motion_model_estimated_state.header.frame_id='odom'
+    motion_model_estimated_state.child_frame_id='base_footprint'
+
+def update_state(waypoint):
+    """Update the robot state by setting the motion_model_estimated_state global variable
+
+    Parameters
+    ----------
+        tf_listener: tf_listener
+            Transform listener
+    Returns
+    -------
+    
+    """
+    # The estimate pose is equal to the previous waypoint
+    # where I exepect to be, in case of noise-free environment
+    pose_motion_model = convert_wp_to_pose(waypoint)
+    rospy.logdebug("Previous wp with odom: {}".format(pose_motion_model))    
+    
+    global motion_model_estimated_state
+    #---- POSE----#
+    motion_model_estimated_state.pose.pose = pose_motion_model
+    # update the covariance matrix
+    # we suppose that the error on the different axis is i.i.d (indipendent and equally distributed)
+    for i in range(6):
+        diagonal_index = (i*6)+i
+        if i < 3:
+            motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + (STD_VAR**2)
+        else:
+            motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + (STD_VAR_ROT**2)
+    #---- TWIST---#
+    motion_model_estimated_state.twist.twist = Twist()
+    motion_model_estimated_state.twist.twist.linear.x = 0.0
+    motion_model_estimated_state.twist.twist.linear.y = 0.0
+    motion_model_estimated_state.twist.twist.linear.z = 0.0
+    motion_model_estimated_state.twist.twist.angular.x = 0.0
+    motion_model_estimated_state.twist.twist.angular.y = 0.0
+    motion_model_estimated_state.twist.twist.angular.z = 0.0
+    motion_model_estimated_state.twist.covariance = list(np.zeros(36, np.float64))
+    motion_model_estimated_state.header.stamp = rospy.Time.now()
+    rospy.loginfo("Update state based on motion model: {}".format(motion_model_estimated_state))    
+ 
 def main():
     rospy.init_node("exe_2_node")
     rate = rospy.Rate(0.2)
@@ -370,11 +450,10 @@ def main():
         
         # get current robot pose
         if i > 0:
-            # the current pose is equal to the previous waypoint
-            # where I exepect to be, in case of noise-free environment
-            current_pose = convert_wp_to_pose(waypoints[i-1])
-            rospy.logdebug("Previous wp with odom: {}".format(current_pose))
-
+            # Update the robot state
+            # Note: The estimated position through the motion model is the previous waypoint
+            update_state(waypoint=waypoints[i-1])
+            current_pose = motion_model_estimated_state.pose.pose
             # convert current_pose_odom into current_pose_base_footprint_odom
             # create homogeneous transformation matrix from odom
             A_odom = np.zeros((4,4))
@@ -401,10 +480,12 @@ def main():
             current_pose.position.y = position_base_footprint_to_odom[1]
             current_pose.position.z = position_base_footprint_to_odom[2]
             rospy.logdebug("Current pose base_footprint to odom: {}".format(current_pose))
-        elif i == 0:
-            # at the beginning, take the pose from tf
-            current_pose = get_current_pose(tf_listener=tf_listener, start_frame="base_footprint", end_frame="odom")
         
+        elif i == 0:
+            # at the beginning, initialize the state
+            initialize_robot_state(tf_listener=tf_listener)
+            current_pose = motion_model_estimated_state.pose.pose
+
         # get desired robot pose
         desired_pose = convert_wp_to_pose(waypoints[i])
         # compute the difference between the current pose and the desired one
