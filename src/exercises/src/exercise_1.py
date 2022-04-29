@@ -65,118 +65,12 @@ def alignement_elapsed(event=None):
     global ALIGNMENT_COMPLETE
     ALIGNMENT_COMPLETE = True
 
-def create_path():
-    # create a sequence of waypoits [x,y,theta], with respect to map
-    waypoints = []
-    """
-    waypoints.append([0.5, 0, 0])
-    
-    waypoints.append([1.0, 0.0, 0.0])
-    
-    waypoints.append([1.5, 0.0, 0])
-    
-    waypoints.append([2.0, 0.0, 0.0])
-    
-    waypoints.append([2.5, 0.0, 0.0])
-    
-    waypoints.append([3, 0.0, 0.0])"""
 
-    
-    # move forward of 0.5 m along the x
-    waypoints.append([0.5, 0, 0])
-    
-    # turn right
-    waypoints.append([0.5, -0.5, -math.pi/2])
-    
-    # turn left
-    waypoints.append([1.0, -0.5, 0])
-    
-    # move forward
-    waypoints.append([1.0, 0.0, math.pi/2])
-    
-    # turn left
-    waypoints.append([0.5, 0.0, math.pi])
-    
-    # go to starting point
-    waypoints.append([0, 0.0, math.pi])
-
-    return waypoints
 
 def spawn_robot():
     pass
 
-def trapezoidal_motion(cmd_vel_pub: rospy.Publisher,delta_x):
-    vel_c = 0.2
-    t_f = 5.0
-    pos_i = 0
-    pos_f = delta_x
-
-    t_c = (pos_i-pos_f + (vel_c * t_f))/(vel_c)
-    acc_c = (vel_c**2 ) /(pos_i-pos_f + (vel_c * t_f))
-    t_c = rospy.Duration(t_c).to_sec()
-    t_f = rospy.Duration(t_f).to_sec()
-    
-    rospy.logdebug(f"t_c:{t_c} - acc_c: {acc_c}")
-
-    
-    start = rospy.Time.now().to_sec()
-    v_k_prec = 0 
-    v_k = 0
-    t_prec = rospy.Time.now().to_sec()
-    
-    r = rospy.Rate(30)
-    while (rospy.Time.now().to_sec() - start) < t_f:
-
-        if 0 < (rospy.Time.now().to_sec() - start) < (t_c):
-            v_k = v_k_prec + (acc_c * (rospy.Time.now().to_sec() - t_prec))
-            rospy.logdebug(f"acc con v: {v_k} -- {rospy.Time.now().to_sec() - t_prec}")
-            t_prec = rospy.Time.now().to_sec()
-            v_k_prec = v_k
-        elif (t_c) < (rospy.Time.now().to_sec() - start) < (t_f - t_c):
-            v_k = v_k_prec
-            t_prec = rospy.Time.now().to_sec()
-            rospy.logdebug(f"cost con v: {v_k}")
-
-        elif ((t_f - t_c) < (rospy.Time.now().to_sec() - start) < (t_f)):
-            v_k = v_k_prec - (acc_c * (rospy.Time.now().to_sec()- t_prec))
-            t_prec = rospy.Time.now().to_sec()
-            rospy.logdebug(f"dec con v: {v_k}")
-            v_k_prec = v_k
-    
-        cmd_vel = Twist()
-        cmd_vel.linear.x = abs(v_k)
-        cmd_vel.linear.y = 0.0
-        cmd_vel.linear.z = 0.0
-        cmd_vel.angular.x = 0.0
-        cmd_vel.angular.y = 0.0
-        cmd_vel.angular.z = 0.0
-        cmd_vel_pub.publish(cmd_vel)
-        
-        r.sleep()
-    timer_elapsed()
-
 def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
-    """This function is used to move the robot
-
-    Parameters
-    ----------
-        cmd_vel_pub: rospy.Publisher
-            Command publisher
-
-        delta_x:
-            Displacement to cover along x axis
-        delta_y:
-            Displacement to cover along y axis
-
-        delta_theta:
-            Displacement to cover about z axis
-
-    Returns
-    -------
-        
-    """
-    global REACHED_WP
-    REACHED_WP = False
     global REACHED_WP
     REACHED_WP = False
 
@@ -185,7 +79,8 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         # the robot is alligned with the desired orientation
         # go straight
         rospy.loginfo("Going straight with trapezoidal motion.....")
-        trapezoidal_motion(cmd_vel_pub, delta_x)
+        utils.trapezoidal_motion(cmd_vel_pub, delta_x)
+        timer_elapsed()
     else:
         # the robot is not aligned with the target orientation
         rospy.loginfo("Aligning with next wp...")
@@ -213,23 +108,12 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         rospy.sleep(1)
         v_x = new_displacement[0][0] / TIME
         v_y = new_displacement[1][0] / TIME
-        trapezoidal_motion(cmd_vel_pub, new_displacement[0][0])
+        utils.trapezoidal_motion(cmd_vel_pub, new_displacement[0][0])
+        timer_elapsed()
 
     
 
 def convert_wp_to_pose(waypoint):
-    """This function is used to convert the waypoint = [x,y,theta] in a pose
-
-    Parameters
-    ----------
-        waypoint: list
-            Waypoint in input, in the format [x,y,theta]
-    Returns
-    -------
-        pose: Pose
-            Corresponding waypoint pose, defined with respect to odom
-            
-    """
     pose = Pose()
     pose.position.x = waypoint[0]
     pose.position.y = waypoint[1]
@@ -243,24 +127,6 @@ def convert_wp_to_pose(waypoint):
     return pose
 
 def get_current_pose(tf_listener: tf.listener, start_frame:str, end_frame:str) -> Pose:
-    """This function is used to get the current pose of the robot
-
-    Parameters
-    ----------
-        tf_listener: tf.listener
-            The current robot pose. It is the position and orientation from base_footprint to odom frame
-
-        start_frame: str
-            Frame name with respect to which describe the pose
-
-        end_frame: str
-            Name of the frame that we want to know the pose
-    Returns
-    -------
-        pose: Pose
-            The pose of the end_frame with respect to the start_frame (e.g. odom -> base_footprint)
-            
-    """
     try:
         t = tf_listener.getLatestCommonTime(start_frame, end_frame)
         position, quaternion = tf_listener.lookupTransform(start_frame, end_frame, t)
@@ -279,26 +145,6 @@ def get_current_pose(tf_listener: tf.listener, start_frame:str, end_frame:str) -
     return pose
 
 def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
-    """This function computes the the difference in position and orientation between the current pose and the desired one, 
-    in order to generate the command
-
-    Parameters
-    ----------
-        current_pose: Pose
-            The current robot pose. It is the position and orientation from base_footprint to odom frame
-
-        desired_pose: Pose
-            Desired robot pose. It is the position and the orientation of the waypoiny with respect the odom frame
-    Returns
-    -------
-        delta_x: float
-            The distance between current position and desired one, along x axis
-        delta_y: float
-            The distance between current position and desired one, along y axis
-        delta_theta: float
-            The difference in orientation between the current position and desired one, about x axis
-            
-    """
     # current pose A{base_footprint}_{odom}
     # desired pose A{odom}_{wp}
 
@@ -323,11 +169,11 @@ def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
     # define the wp with respect to current pose
     A_base_footprint_to_wp = np.matmul(A_base_footprint_to_odom, A_odom_to_wp)
 
-    
-    rospy.logdebug("\nA_base_footprint_to_odom:\n{}".format(A_base_footprint_to_odom))
-    rospy.logdebug("\nA_odom_to_wp:\n{}".format(A_odom_to_wp))
-    rospy.logdebug("\nvA_base_footprint_to_wp:\n{}".format(A_base_footprint_to_wp))
-    
+    """
+    rospy.loginfo("\nA_base_footprint_to_odom:\n{}".format(A_base_footprint_to_odom))
+    rospy.loginfo("\nA_odom_to_wp:\n{}".format(A_odom_to_wp))
+    rospy.loginfo("\nvA_base_footprint_to_wp:\n{}".format(A_base_footprint_to_wp))
+    """
 
     delta_x = A_base_footprint_to_wp[0][3]
     delta_y = A_base_footprint_to_wp[1][3]
@@ -352,7 +198,7 @@ def main():
     tf_listener.waitForTransform("/odom", "/imu_link", rospy.Time(), rospy.Duration(20.0))
     
     # get the path
-    waypoints = create_path()
+    waypoints = utils.create_path()
     marker_array = utils.create_markers(waypoints)
     rospy.loginfo("Publishing markers")
     marker_array_pub.publish(marker_array)
