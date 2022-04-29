@@ -44,11 +44,11 @@ ALIGNMENT_COMPLETE = False
 
 # set the mean and std. var for guassian noise on linear motion model
 MEAN = 0.0 # m
-STD_VAR = 0.3 # m 
+STD_DEV = 0.3 # m 
 
 # set the mean and std.var for rotation
 MEAN_ROT = 0.0 # rad
-STD_VAR_ROT = 0.06 # rad
+STD_DEV_ROT = 0.06 # rad
 
 def timer_elapsed(event=None):
     # stop the robot
@@ -106,7 +106,7 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         # go straight
         rospy.loginfo("Going straight with trapezoidal motion.....")
         # where actually I go due to the noise in the movement model
-        new_displacement_w_noise = [delta_x, delta_y] + np.random.normal(MEAN, STD_VAR, size=2)
+        new_displacement_w_noise = [delta_x, delta_y] + np.random.normal(MEAN, STD_DEV, size=2)
         rospy.loginfo("Command afer noise: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_w_noise[0], new_displacement_w_noise[1], 0.0))
         utils.trapezoidal_motion(cmd_vel_pub, new_displacement_w_noise[0])    
         timer_elapsed()     
@@ -114,7 +114,7 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         # the robot is not aligned with the target orientation
         rospy.loginfo("Aligning with next wp...")
         # add noise to ration
-        theta_with_noise = delta_theta + np.random.normal(MEAN_ROT, STD_VAR_ROT)
+        theta_with_noise = delta_theta + np.random.normal(MEAN_ROT, STD_DEV_ROT)
         rospy.loginfo("Command rotation after noise: delta_theta {}".format(theta_with_noise))
         omega = theta_with_noise / TIME
         cmd_vel = Twist()
@@ -140,7 +140,7 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         # set new command
         rospy.sleep(1)
         # where actually I go due to the noise in the movement model
-        noise = np.random.normal(MEAN, STD_VAR, size=2)
+        noise = np.random.normal(MEAN, STD_DEV, size=2)
         rospy.loginfo("Noise: {}".format(noise))
         new_displacement_w_noise = [new_displacement_wo_noise[0][0], new_displacement_wo_noise[1][0]] + noise
         rospy.loginfo("Command after alignemnt noise: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_w_noise[0], new_displacement_w_noise[1], 0.0))
@@ -337,9 +337,9 @@ def update_state(waypoint):
     for i in range(6):
         diagonal_index = (i*6)+i
         if i < 3:
-            motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + (STD_VAR**2)
+            motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + (STD_DEV**2)
         else:
-            motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + (STD_VAR_ROT**2)
+            motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + (STD_DEV_ROT**2)
     #---- TWIST---#
     motion_model_estimated_state.twist.twist = Twist()
     motion_model_estimated_state.twist.twist.linear.x = 0.0

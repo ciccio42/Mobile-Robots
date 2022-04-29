@@ -39,13 +39,21 @@ USER_INPUT_VALID = True
 REACHED_WP = True
 ALIGNMENT_COMPLETE = False
 
-# set the mean and std. var for guassian noise to apply on computed command
+# set the mean and std. var for guassian noise to apply on motion model
 MEAN = 0.0 # m
-STD_VAR = 0.3 # m 
+STD_DEV = 0.3 # m 
 
 # set the mean and std.var for rotation command
 MEAN_ROT = 0.0 # rad
-STD_VAR_ROT = 0.006 # rad
+STD_DEV_ROT = 0.006 # rad
+
+# set the mean and std. var for laser scan estimation
+MEAN_LASER_X = 0.0
+STD_LASER_VAR_X = 0.6
+MEAN_LASER_Y = 0.0
+STD_LASER_VAR_Y = 0.6
+MEAN_ORIENTATION_IMU = 0.0
+STD_DEV_ORIENTATION_IMU = 0.01
 
 # Initial Pose
 initial_pose = Pose()
@@ -81,9 +89,6 @@ def alignement_elapsed(event=None):
     global ALIGNMENT_COMPLETE
     ALIGNMENT_COMPLETE = True
 
-
-    
-
 def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angle_x_base_footprint_displacement):
     """This function is used to move the robot
 
@@ -112,7 +117,7 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angl
         # go straight
         rospy.loginfo("Going straight with trapezoidal motion.....")
         # where actually I go due to the noise in the movement model
-        new_displacement_w_noise = [delta_x, delta_y] + np.random.normal(MEAN, STD_VAR, size=2)
+        new_displacement_w_noise = [delta_x, delta_y] + np.random.normal(MEAN, STD_DEV, size=2)
         rospy.loginfo("Command afer noise: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_w_noise[0], new_displacement_w_noise[1], 0.0))
         v_x = new_displacement_w_noise[0] / TIME
         v_y = new_displacement_w_noise[1] / TIME
@@ -122,7 +127,7 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angl
         #----STEP 1----#
         # align with the displacement vector
         rospy.loginfo("Aligning with displacement vector..")
-        angle_x_base_footprint_displacement = angle_x_base_footprint_displacement + np.random.normal(MEAN_ROT, STD_VAR_ROT)
+        angle_x_base_footprint_displacement = angle_x_base_footprint_displacement + np.random.normal(MEAN_ROT, STD_DEV_ROT)
         rospy.loginfo("Command rotation angle_x_base_footprint_displacement after noise:  {}".format(angle_x_base_footprint_displacement))
         # the robot is not aligned with the target orientation
         rospy.loginfo("Aligning with next wp...")
@@ -152,7 +157,7 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angl
         # set new command
         rospy.sleep(1)
         # where actually I go due to the noise in the movement model
-        noise = np.random.normal(MEAN, STD_VAR, size=2)
+        noise = np.random.normal(MEAN, STD_DEV, size=2)
         rospy.loginfo("Noise: {}".format(noise))
         new_displacement_w_noise = [new_displacement_wo_noise[0][0], new_displacement_wo_noise[1][0]] + noise
         rospy.loginfo("Command after alignemnt, with noise: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_w_noise[0], new_displacement_w_noise[1], 0.0))
@@ -165,7 +170,7 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angl
 
         #---STEP 3---#
         # reach wp orientation
-        theta_with_noise = (delta_theta-angle_x_base_footprint_displacement) + np.random.normal(MEAN_ROT, STD_VAR_ROT)
+        theta_with_noise = (delta_theta-angle_x_base_footprint_displacement) + np.random.normal(MEAN_ROT, STD_DEV_ROT)
         rospy.loginfo("Command rotation after noise: delta_theta {}".format(theta_with_noise))
         omega = theta_with_noise / TIME
         cmd_vel = Twist()
@@ -410,10 +415,10 @@ def measure_world(laser_scan_topic: str, imu_topic: str, tf_listener: tf.listene
     # get the orientation from the imu msg
     # the goal is to obtain the orientation of odom with respect to base_footprint
     if imu_msg.header.frame_id == "base_footprint" and imu_msg.orientation_covariance[0] != -1:
-        robot_pose.orientation.x = -imu_msg.orientation.x  
-        robot_pose.orientation.y = -imu_msg.orientation.y
-        robot_pose.orientation.z = -imu_msg.orientation.z
-        robot_pose.orientation.w = imu_msg.orientation.w
+        robot_pose.orientation.x = -imu_msg.orientation.x  + np.random.normal(MEAN_ORIENTATION_IMU, STD_DEV_ORIENTATION_IMU)
+        robot_pose.orientation.y = -imu_msg.orientation.y  + np.random.normal(MEAN_ORIENTATION_IMU, STD_DEV_ORIENTATION_IMU)
+        robot_pose.orientation.z = -imu_msg.orientation.z  + np.random.normal(MEAN_ORIENTATION_IMU, STD_DEV_ORIENTATION_IMU)
+        robot_pose.orientation.w = imu_msg.orientation.w  + np.random.normal(MEAN_ORIENTATION_IMU, STD_DEV_ORIENTATION_IMU)
     
     # convert polar to cartesian
     measures_cartesian = convert_laser_measure_polar_to_cartesian(laser_scan_msg.ranges)
@@ -467,9 +472,9 @@ def measure_world(laser_scan_topic: str, imu_topic: str, tf_listener: tf.listene
         pos_base_footprint_to_odom = np.array([pos_base_footprint_to_odom[0][0],pos_base_footprint_to_odom[1][0],pos_base_footprint_to_odom[2][0]])       
         rospy.logdebug("\nPosition base_footprint: {}".format(pos_base_footprint_to_odom))
 
-    robot_pose.position.x = pos_base_footprint_to_odom[0]
-    robot_pose.position.y = pos_base_footprint_to_odom[1]
-    robot_pose.position.z = pos_base_footprint_to_odom[2]
+    robot_pose.position.x = pos_base_footprint_to_odom[0] + np.random.uniform(MEAN_LASER_X, STD_LASER_VAR_X)
+    robot_pose.position.y = pos_base_footprint_to_odom[1] + np.random.uniform(MEAN_LASER_Y, STD_LASER_VAR_Y)
+    robot_pose.position.z = pos_base_footprint_to_odom[2] # not used
     
     return robot_pose
 
@@ -523,7 +528,7 @@ def main():
         # Estimate robot pose with sensors: laser scan and imu
         rospy.loginfo("Estimate robot state with sensor")
         measured_robot_pose = measure_world("/scan", "/imu", tf_listener)
-        rospy.loginfo("Estimated robt pose {}".format(measured_robot_pose))
+        rospy.loginfo("Estimated robot pose with sensor {}".format(measured_robot_pose))
 
         key = input("Press any key to continue: ")
         rospy.loginfo("Waypoint {} - {}".format(i+1, waypoints[i]))
