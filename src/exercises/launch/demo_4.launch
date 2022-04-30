@@ -1,0 +1,19 @@
+<launch>
+  
+    <!--run gazebo-->
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_stage_1.launch" />
+
+    <!--run teleop key-->
+    <!--include file="$(find turtlebot3_teleop)/launch/turtlebot3_teleop_key.launch" /-->
+
+    <!--run rviz-->
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_gazebo_rviz.launch" />
+
+    <!-- run ekf-->
+    <!-- <include file="$(find robot_pose_ekf)/robot_pose_ekf.launch" >
+    </include> -->
+    
+    <!--run walker node-->
+    <node name="ex_4" pkg="exercises" type="exercise_4.py" output="screen"/>
+
+</launch>
