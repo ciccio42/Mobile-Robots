@@ -1,7 +1,3 @@
-.catkin_tools
-.vscode
-build
-devel
-logs
-/src/*
-!/src/exercises
+odometry_ex
+robot_pose_ekf
+turtlebot3_simulations
