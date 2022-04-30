@@ -14,6 +14,7 @@ Follow the rules [here](https://emanual.robotis.com/docs/en/platform/turtlebot3/
 3. Move in *src* folder
 ```bash
 git clone https://github.com/ciccio42/Mobile-Robots.git # or copy the exercises directory into the src folder
+cd Mobile-Robots && mv exercises ../ && cd ../ && rm -rf Mobile-Robots
 cd ../
 catkin build
 source devel/setup.bash
