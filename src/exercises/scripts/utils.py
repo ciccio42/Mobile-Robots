@@ -6,6 +6,35 @@ from geometry_msgs.msg import Pose, Twist
 import math
 
 
+##---- CONSTANT DEFINITION ----#
+# MAX LINEAR SPEED
+V_MAX = 0.20
+# MAX ANGULAR SPEED
+OMEGA_MAX = 0.20
+# TIME TO REACH DESIDER POSITION
+TIME = 3 # s
+# Flag to consider the user input valid
+USER_INPUT_VALID = True
+REACHED_WP = True
+ALIGNMENT_COMPLETE = False
+
+# set the mean and std. var for guassian noise on linear motion model
+MEAN = 0.0 # m
+STD_DEV = 0.2 # m 
+CLIP_ON_VARIATION_MOTION_MODEL = 0.5 # correspond to the 99-th percentile
+
+# set the mean and std.var for rotation in motion model
+MEAN_ROT = 0.0 # rad
+STD_DEV_ROT = 0.06 # rad
+
+# set the mean and std. var for laser scan estimation
+MEAN_LASER_X = 0.0
+STD_DEV_LASER_VAR_X = 0.4
+MEAN_LASER_Y = 0.0
+STD_DEV_LASER_VAR_Y = 0.4
+MEAN_ORIENTATION_IMU = 0.0
+STD_DEV_ORIENTATION_IMU = 0.01
+
 
 def create_path():
     # create a sequence of waypoits [x,y,theta], with respect to map

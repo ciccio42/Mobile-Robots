@@ -14,6 +14,6 @@
     </include> -->
     
     <!--run walker node-->
-    <!--node name="ex_4" pkg="exercises" type="exercise_4.py" output="screen"/-->
+    <node name="ex_4" pkg="exercises" type="exercise_4.py" output="screen"/>
 
 </launch>

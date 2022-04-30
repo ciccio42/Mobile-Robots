@@ -16,27 +16,12 @@ import numpy as np
 package_path = rospkg.RosPack().get_path('exercises')
 sys.path.append(os.path.join(package_path, "scripts"))
 import utils
-
-# SUPPOSE THAT THE STARTING POSITION IS KNOWN
-start_position = Pose()
-start_position.position.x = 0.0
-start_position.position.y = 0.0
-start_position.position.z = 0.0
-start_position.orientation.w = 1.0
+from utils import V_MAX, OMEGA_MAX, TIME, USER_INPUT_VALID, REACHED_WP, ALIGNMENT_COMPLETE, \
+                  ALIGNMENT_COMPLETE, STD_DEV, MEAN, MEAN_ROT, STD_DEV_ROT, MEAN_LASER_X, STD_DEV_LASER_VAR_X, \
+                  MEAN_LASER_Y, STD_DEV_LASER_VAR_Y, MEAN_ORIENTATION_IMU, STD_DEV_ORIENTATION_IMU, CLIP_ON_VARIATION_MOTION_MODEL
 
 # create cmd_vel publisher
 cmd_vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
-
-# MAX LINEAR SPEED
-V_MAX = 0.20
-# MAX ANGULAR SPEED
-OMEGA_MAX = 0.20
-# TIME TO REACH DESIDER POSITION
-TIME = 3 # s
-# Flag to consider the user input valid
-USER_INPUT_VALID = True
-REACHED_WP = True
-ALIGNMENT_COMPLETE = False
 
 def timer_elapsed(event=None):
     # stop the robot
@@ -52,7 +37,7 @@ def timer_elapsed(event=None):
     REACHED_WP = True
     USER_INPUT_VALID = True
 
-def alignement_elapsed(event=None):
+def alignment_elapsed(event=None):
     # stop the robot
     cmd_vel = Twist()
     cmd_vel.linear.x = 0.0
@@ -65,11 +50,6 @@ def alignement_elapsed(event=None):
     global ALIGNMENT_COMPLETE
     ALIGNMENT_COMPLETE = True
 
-
-
-def spawn_robot():
-    pass
-
 def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
     global REACHED_WP
     REACHED_WP = False
@@ -78,12 +58,12 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
     if abs(delta_theta) < 10**-3: # delta_theta is equal to zero
         # the robot is alligned with the desired orientation
         # go straight
-        rospy.loginfo("Going straight with trapezoidal motion.....")
+        rospy.loginfo("\nGoing straight with trapezoidal motion.....")
         utils.trapezoidal_motion(cmd_vel_pub, delta_x)
         timer_elapsed()
     else:
         # the robot is not aligned with the target orientation
-        rospy.loginfo("Aligning with next wp...")
+        rospy.loginfo("\nAligning with next wp...")
         omega = delta_theta / TIME
         cmd_vel = Twist()
         cmd_vel.linear.x = 0.0
@@ -93,8 +73,8 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         cmd_vel.angular.y = 0.0
         cmd_vel.angular.z = omega
         cmd_vel_pub.publish(cmd_vel)
-        rospy.Timer(rospy.Duration(secs=TIME),alignement_elapsed, oneshot=True)
-        # wait until alignement is not complete
+        rospy.Timer(rospy.Duration(secs=TIME),alignment_elapsed, oneshot=True)
+        # wait until alignment is not complete
         global ALIGNMENT_COMPLETE
         ALIGNMENT_COMPLETE = False
         while not ALIGNMENT_COMPLETE:
@@ -103,7 +83,7 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta):
         # Rotate delta
         tRz = tf.transformations.rotation_matrix(delta_theta, (0,0,1))[:-1,:-1].transpose()
         new_displacement = np.matmul(tRz, np.array([[delta_x, delta_y, 0.0]]).transpose())
-        rospy.loginfo("Command afer alignment: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement[0][0], new_displacement[1][0], delta_theta))
+        rospy.loginfo("\nCommand afer alignment: delta_x {} - delta_theta {}".format(new_displacement[0][0], new_displacement[1][0], delta_theta))
         # set new command
         rospy.sleep(1)
         v_x = new_displacement[0][0] / TIME
@@ -123,14 +103,14 @@ def convert_wp_to_pose(waypoint):
     pose.orientation.y = orientation[1]
     pose.orientation.z = orientation[2]
     pose.orientation.w = orientation[3]
-    rospy.loginfo("Waypoint pose {}".format(pose))
+    rospy.loginfo("\nWaypoint pose {}".format(pose))
     return pose
 
 def get_current_pose(tf_listener: tf.listener, start_frame:str, end_frame:str) -> Pose:
     try:
         t = tf_listener.getLatestCommonTime(start_frame, end_frame)
         position, quaternion = tf_listener.lookupTransform(start_frame, end_frame, t)
-        rospy.loginfo("Current robot pose with respect to {}:\n position {}\n Quaternion {}".format(end_frame, position, quaternion))    
+        rospy.logdebug("\nCurrent robot pose with respect to {}:\n position {}\n Quaternion {}".format(start_frame, position, quaternion))    
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
         rospy.logerr("Lookup Transform failed")
 
@@ -181,8 +161,8 @@ def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
     r,p,y = tf.transformations.euler_from_matrix(A_base_footprint_to_wp[:3,:3])
     delta_theta = y
 
-    rospy.loginfo("Command delta_x {} - delta_y {} - delta_theta {}".format(delta_x, delta_y, delta_theta))
-
+    rospy.loginfo("\nCommand delta_x {} - delta_y {} - delta_theta {}".format(delta_x, delta_y, delta_theta))
+    
     return delta_x, delta_y, delta_theta
 
 def main():
@@ -200,15 +180,16 @@ def main():
     # get the path
     waypoints = utils.create_path()
     marker_array = utils.create_markers(waypoints)
-    rospy.loginfo("Publishing markers")
+    rospy.loginfo("\nPublishing markers")
     marker_array_pub.publish(marker_array)
 
-    rospy.loginfo("Start following the planned trajectory")
+    rospy.loginfo("\nStart following the planned trajectory")
     for i in range(len(waypoints)):
-        
+        rospy.loginfo("\n###########################################\n")
+
         key = input("Press any key to continue: ")
 
-        rospy.loginfo("Waypoint {} - {}".format(i+1, waypoints[i]))
+        rospy.loginfo("\nWaypoint {} - {}".format(i+1, waypoints[i]))
         # get current robot pose
         current_pose = get_current_pose(tf_listener, "base_footprint", "odom")
         # get desired robot pose
@@ -217,11 +198,14 @@ def main():
         delta_x, delta_y, delta_theta = compute_pose_difference(current_pose=current_pose, desired_pose=desired_pose)
         rospy.loginfo("\n")
         # compute the time needed to reach the desired pose with a given velocity
-        rospy.loginfo("Move toward the waypoint....")
+        rospy.loginfo("\nMove toward the waypoint....")
         move_robot(cmd_vel_pub, delta_x, delta_y, delta_theta)
 
         while not REACHED_WP:
             pass
         
+        rospy.loginfo("\nWhere the robot is: \n{}".format(get_current_pose(tf_listener, 'odom', 'base_footprint')))
+        rospy.loginfo("\nWhere the robot is supposed to be, based on motion model: \n{}".format(desired_pose))
+
 if __name__ == '__main__':
     main()

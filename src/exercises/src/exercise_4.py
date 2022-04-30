@@ -19,43 +19,12 @@ import numpy as np
 package_path = rospkg.RosPack().get_path('exercises')
 sys.path.append(os.path.join(package_path, "scripts"))
 import utils
-
-# SUPPOSE THAT THE STARTING POSITION IS KNOWN
-start_position = Pose()
-start_position.position.x = 0.0
-start_position.position.y = 0.0
-start_position.position.z = 0.0
-start_position.orientation.w = 1.0
+from utils import V_MAX, OMEGA_MAX, TIME, USER_INPUT_VALID, REACHED_WP, ALIGNMENT_COMPLETE, \
+                  ALIGNMENT_COMPLETE, STD_DEV, MEAN, MEAN_ROT, STD_DEV_ROT, MEAN_LASER_X, STD_DEV_LASER_VAR_X, \
+                  MEAN_LASER_Y, STD_DEV_LASER_VAR_Y, MEAN_ORIENTATION_IMU, STD_DEV_ORIENTATION_IMU, CLIP_ON_VARIATION_MOTION_MODEL
 
 # create cmd_vel publisher
 cmd_vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
-
-# MAX LINEAR SPEED
-V_MAX = 0.20
-# MAX ANGULAR SPEED
-OMEGA_MAX = 0.20
-# TIME TO REACH DESIDER POSITION
-TIME = 3 # s
-# Flag to consider the user input valid
-USER_INPUT_VALID = True
-REACHED_WP = True
-ALIGNMENT_COMPLETE = False
-
-# set the mean and std. var for guassian noise on motion model
-MEAN = 0.0 # m
-STD_DEV = 0.3 # m 
-
-# set the mean and std.var for rotation
-MEAN_ROT = 0.0 # rad
-STD_DEV_ROT = 0.006 # rad
-
-# set the mean and std. var for laser scan estimation
-MEAN_LASER_X = 0.0
-STD_LASER_VAR_X = 0.6
-MEAN_LASER_Y = 0.0
-STD_LASER_VAR_Y = 0.6
-MEAN_ORIENTATION_IMU = 0.0
-STD_DEV_ORIENTATION_IMU = 0.01
 
 # Initial Pose
 initial_pose = Pose()
@@ -67,7 +36,7 @@ seq_cnt = 0
 
 # Robot State based on motion model, the state is the Pose
 # Since when we update the state the robot is stopped
-motion_model_estimated_state = PoseWithCovariance() 
+motion_model_estimated_state = PoseWithCovarianceStamped() 
 
 def timer_elapsed(event=None):
     # stop the robot
@@ -83,7 +52,7 @@ def timer_elapsed(event=None):
     REACHED_WP = True
     USER_INPUT_VALID = True
 
-def alignement_elapsed(event=None):
+def alignment_elapsed(event=None):
     # stop the robot
     cmd_vel = Twist()
     cmd_vel.linear.x = 0.0
@@ -95,7 +64,6 @@ def alignement_elapsed(event=None):
     cmd_vel_pub.publish(cmd_vel)
     global ALIGNMENT_COMPLETE
     ALIGNMENT_COMPLETE = True
-
 
 def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angle_x_base_footprint_displacement):
     """This function is used to move the robot
@@ -120,13 +88,13 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angl
     global REACHED_WP
     REACHED_WP = False
     
-    if abs(delta_theta) < 10**-3: # delta_theta is equal to zero
+    if abs(delta_theta) < 10**-3 and abs(angle_x_base_footprint_displacement) < 10**-3: # the robot is aligned with the wp
         # the robot is alligned with the desired orientation
         # go straight
-        rospy.loginfo("Going straight with trapezoidal motion.....")
+        rospy.loginfo("\nGoing straight with trapezoidal motion.....")
         # where actually I go due to the noise in the movement model
-        new_displacement_w_noise = [delta_x, delta_y] + np.random.normal(MEAN, STD_DEV, size=2)
-        rospy.loginfo("Command afer noise: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_w_noise[0], new_displacement_w_noise[1], 0.0))
+        new_displacement_w_noise = [delta_x, delta_y] + np.clip(np.random.normal(MEAN, STD_DEV, size=2), -CLIP_ON_VARIATION_MOTION_MODEL, CLIP_ON_VARIATION_MOTION_MODEL)
+        rospy.loginfo("\nCommand afer noise: delta_x {} - delta_theta {}".format(new_displacement_w_noise[0], 0.0))
         v_x = new_displacement_w_noise[0] / TIME
         v_y = new_displacement_w_noise[1] / TIME
         utils.trapezoidal_motion(cmd_vel_pub, new_displacement_w_noise[0])      
@@ -134,11 +102,11 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angl
     else:
         #----STEP 1----#
         # align with the displacement vector
-        rospy.loginfo("Aligning with displacement vector..")
+        rospy.loginfo("\nAligning with displacement vector..")
         angle_x_base_footprint_displacement = angle_x_base_footprint_displacement + np.random.normal(MEAN_ROT, STD_DEV_ROT)
-        rospy.loginfo("Command rotation angle_x_base_footprint_displacement after noise:  {}".format(angle_x_base_footprint_displacement))
+        rospy.loginfo("\nCommand rotation angle_x_base_footprint_displacement after noise:  {}".format(angle_x_base_footprint_displacement))
         # the robot is not aligned with the target orientation
-        rospy.loginfo("Aligning with next wp...")
+        rospy.loginfo("\nAligning with next wp...")
         omega = angle_x_base_footprint_displacement / TIME
         cmd_vel = Twist()
         cmd_vel.linear.x = 0.0
@@ -148,8 +116,8 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angl
         cmd_vel.angular.y = 0.0
         cmd_vel.angular.z = omega
         cmd_vel_pub.publish(cmd_vel)
-        rospy.Timer(rospy.Duration(secs=TIME),alignement_elapsed, oneshot=True)
-        # wait until alignement is not complete
+        rospy.Timer(rospy.Duration(secs=TIME),alignment_elapsed, oneshot=True)
+        # wait until alignment is not complete
         global ALIGNMENT_COMPLETE
         ALIGNMENT_COMPLETE = False
         while not ALIGNMENT_COMPLETE:
@@ -161,14 +129,14 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angl
         tRz = tf.transformations.rotation_matrix(angle_x_base_footprint_displacement, (0,0,1))[:-1,:-1].transpose()
         # new_displacement_wo_noise -> my belief where I think I am going
         new_displacement_wo_noise = np.matmul(tRz, np.array([[delta_x, delta_y, 0.0]]).transpose())
-        rospy.loginfo("Command after alignemnt: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_wo_noise[0][0], new_displacement_wo_noise[1][0], 0.0))
+        rospy.loginfo("\nCommand after alignment: delta_x {} - delta_theta {}".format(new_displacement_wo_noise[0][0], 0.0))
         # set new command
         rospy.sleep(1)
         # where actually I go due to the noise in the movement model
-        noise = np.random.normal(MEAN, STD_DEV, size=2)
-        rospy.loginfo("Noise: {}".format(noise))
+        noise = np.clip(np.random.normal(MEAN, STD_DEV, size=2), -CLIP_ON_VARIATION_MOTION_MODEL, CLIP_ON_VARIATION_MOTION_MODEL)
+        rospy.loginfo("\nNoise: {}".format(noise))
         new_displacement_w_noise = [new_displacement_wo_noise[0][0], new_displacement_wo_noise[1][0]] + noise
-        rospy.loginfo("Command after alignemnt, with noise: delta_x {} - delta_y {} - delta_theta {}".format(new_displacement_w_noise[0], new_displacement_w_noise[1], 0.0))
+        rospy.loginfo("\nCommand after alignment, with added noise: delta_x {} - delta_theta {}".format(new_displacement_w_noise[0], 0.0))
         v_x = new_displacement_w_noise[0] / TIME
         v_y = new_displacement_w_noise[1] / TIME
         utils.trapezoidal_motion(cmd_vel_pub, new_displacement_w_noise[0])
@@ -179,7 +147,7 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angl
         #---STEP 3---#
         # reach wp orientation
         theta_with_noise = (delta_theta-angle_x_base_footprint_displacement) + np.random.normal(MEAN_ROT, STD_DEV_ROT)
-        rospy.loginfo("Command rotation after noise: delta_theta {}".format(theta_with_noise))
+        rospy.loginfo("\nAlignment with current waypoint orientation: delta_theta {}".format(theta_with_noise))
         omega = theta_with_noise / TIME
         cmd_vel = Twist()
         cmd_vel.linear.x = 0.0
@@ -189,8 +157,8 @@ def move_robot(cmd_vel_pub: rospy.Publisher, delta_x, delta_y, delta_theta, angl
         cmd_vel.angular.y = 0.0
         cmd_vel.angular.z = omega
         cmd_vel_pub.publish(cmd_vel)
-        rospy.Timer(rospy.Duration(secs=TIME),alignement_elapsed, oneshot=True)
-        # wait until alignement is not complete
+        rospy.Timer(rospy.Duration(secs=TIME),alignment_elapsed, oneshot=True)
+        # wait until alignment is not complete
         ALIGNMENT_COMPLETE = False
         while not ALIGNMENT_COMPLETE:
             pass
@@ -242,7 +210,7 @@ def get_current_pose(tf_listener: tf.listener, start_frame:str, end_frame:str) -
     try:
         t = tf_listener.getLatestCommonTime(start_frame, end_frame)
         position, quaternion = tf_listener.lookupTransform(start_frame, end_frame, t)
-        rospy.loginfo("Current robot pose with respect to {}:\n position {}\n Quaternion {}".format(end_frame, position, quaternion))    
+        rospy.logdebug("\nCurrent robot pose with respect to {}:\n position {}\n Quaternion {}".format(start_frame, position, quaternion))    
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
         rospy.logerr("Lookup Transform failed")
 
@@ -315,9 +283,9 @@ def compute_pose_difference(current_pose: Pose, desired_pose: Pose):
 
     # compute the yaw that align the robot with the displacement vector
     angle_x_base_footprint_displacement = math.atan2(delta_y, delta_x)
-    rospy.loginfo("Angle angle_x_base_footprint_displacement {}".format(angle_x_base_footprint_displacement))
+    rospy.loginfo("\nAngle angle_x_base_footprint_displacement {}".format(angle_x_base_footprint_displacement))
 
-    rospy.loginfo("Command delta_x {} - delta_y {} - delta_theta {}".format(delta_x, delta_y, delta_theta))
+    rospy.loginfo("\nCommand delta_x {} - delta_y {} - delta_theta {}".format(delta_x, delta_y, delta_theta))
 
     return delta_x, delta_y, delta_theta, angle_x_base_footprint_displacement
 
@@ -468,8 +436,8 @@ def measure_world(laser_scan_topic: str, imu_topic: str, odom_topic: str, tf_lis
             # compute the difference
             rospy.logdebug("\nFirst measure front: {}\nFirst measure left: {}\n".format(measure_front_first_odom, measure_left_first_odom))
             rospy.logdebug("\nCurrent measure front: {}\nCurrent measure left: {}\n".format(measure_front_current_odom, measure_left_current_odom))
-            x_pos_odom = (measure_front_first_odom - measure_front_current_odom)[0] + np.random.uniform(MEAN_LASER_X, STD_LASER_VAR_X)
-            y_pos_odom = (measure_left_first_odom - measure_left_current_odom)[1] + np.random.uniform(MEAN_LASER_Y, STD_LASER_VAR_Y)
+            x_pos_odom = (measure_front_first_odom - measure_front_current_odom)[0] + np.random.uniform(MEAN_LASER_X, STD_DEV_LASER_VAR_X)
+            y_pos_odom = (measure_left_first_odom - measure_left_current_odom)[1] + np.random.uniform(MEAN_LASER_Y, STD_DEV_LASER_VAR_Y)
             pos_odom = np.array([x_pos_odom, y_pos_odom, 0.0])
             rospy.logdebug("\nPosition odom: {}".format(pos_odom))
         
@@ -495,15 +463,24 @@ def measure_world(laser_scan_topic: str, imu_topic: str, odom_topic: str, tf_lis
     # since the robot spawn in (0,0,0) with the same orientation of odom
     # we keep the same orientation of pose_laser_scan
     robot_pose_with_covariance.pose.orientation = pose_laser_scan.orientation
-    robot_pose_with_covariance.covariance = list(np.zeros(36))
+    robot_pose_with_covariance.covariance = np.zeros(36)
     for i in range(6):
         diagonal_index = (i*6)+i
         if i < 3:
-            robot_pose_with_covariance.covariance[diagonal_index] = robot_pose_with_covariance.covariance[diagonal_index] + (STD_DEV_X**2)
-        else:
-            robot_pose_with_covariance.covariance[diagonal_index] = robot_pose_with_covariance.covariance[diagonal_index] + (STD_DEV_ORIENTATION_IMU**2)
+            if i == 0:
+                robot_pose_with_covariance.covariance[diagonal_index] = robot_pose_with_covariance.covariance[diagonal_index] + (STD_DEV_LASER_VAR_X**2)
+            elif i == 1:
+                robot_pose_with_covariance.covariance[diagonal_index] = robot_pose_with_covariance.covariance[diagonal_index] + (STD_DEV_LASER_VAR_Y**2)
+            elif i == 2:
+                robot_pose_with_covariance.covariance[diagonal_index] = robot_pose_with_covariance.covariance[diagonal_index] + 1000000000000.0
 
-    rospy.loginfo("Measured robot pose with covariance: {}".format(robot_pose_with_covariance))
+        else:
+            if i == 5:
+                robot_pose_with_covariance.covariance[diagonal_index] = robot_pose_with_covariance.covariance[diagonal_index] + (STD_DEV_ORIENTATION_IMU**2)
+            else:
+                robot_pose_with_covariance.covariance[diagonal_index] = robot_pose_with_covariance.covariance[diagonal_index] + 1000000000000.0
+
+    rospy.logdebug("Measured robot pose with covariance: {}".format(robot_pose_with_covariance))
 
     measured_robot_state = PoseWithCovarianceStamped()
     measured_robot_state.pose = robot_pose_with_covariance
@@ -513,22 +490,32 @@ def measure_world(laser_scan_topic: str, imu_topic: str, odom_topic: str, tf_lis
     seq_cnt += 1
     measured_robot_state.header.stamp = rospy.Time.now()
     measured_robot_state.header.frame_id = "odom"
-    # child_frame_id
-    measured_robot_state.child_frame_id = "base_footprint"
     return measured_robot_state
 
-def update_with_kf(measured_robot_state: PoseWithCovarianceStamped, motion_model_estimated_state: PoseWithCovarianceStamped,
-                    motion_model_state_pub: rospy.Publisher, measured_state_pub: rospy.Publisher, use_robot_pose_ekf = True):
+def update_with_kf(measured_robot_state: PoseWithCovarianceStamped, motion_model_estimated_state: PoseWithCovarianceStamped):
+    """Perform the robot state update step, according to Kalman Fileter rules
+
+    Parameters
+    ----------
+        measured_robot_state: PoseWithCovarianceStamped
+            robot pose derived from sensors 
+
+        motion_model_estimated_state: PoseWithCovarianceStamped
+            robot pose derived from motion model
+
+        
+    Returns
+    -------
     
-    """# PUBLISH Estimated robot state
-    motion_model_state_pub.publish(motion_model_estimated_state)
-    
-    # PUBLISH Measured robot state
-    measured_state_pub.publish(measured_robot_state)"""
-    
+        estimated_robot_pose_stamped: PoseWithCovarianceStamped
+            Adjusted robot pose based on Kalman Filter rules
+    """
+
+    estimated_robot_pose_stamped = PoseWithCovarianceStamped()
     estimated_robot_pose = PoseWithCovariance()
 
     # compute kalman gain
+    # Formula: K' = P_{k} * H^{T}_{K} (H_{K}P_{K}H^{T}_{K}+R_{K})^{-1}, H_{k} = I
     motion_model_estimated_state_covariance = np.reshape(list(motion_model_estimated_state.pose.covariance), newshape=(6,6))
     measured_robot_state_covariance = np.reshape(list(measured_robot_state.pose.covariance), newshape=(6,6))
     kalman_gain = np.matmul(motion_model_estimated_state_covariance, 
@@ -537,7 +524,6 @@ def update_with_kf(measured_robot_state: PoseWithCovarianceStamped, motion_model
 
     #---- UPDATE STATE ----#
     # Formula to implement x^{i}_{k} = x^{pred}_{k} + K'(x^{measured}_k - H_{k}x^{pred}_{k}), H_{k} = I 
-    
     #---- POSITION ----#
     # compute the difference between the measured and predicted position
     pos_difference = np.subtract(np.array([measured_robot_state.pose.pose.position.x, measured_robot_state.pose.pose.position.y, measured_robot_state.pose.pose.position.z]), 
@@ -556,13 +542,13 @@ def update_with_kf(measured_robot_state: PoseWithCovarianceStamped, motion_model
     rospy.logdebug("\Stacked difference {}".format(np.vstack((pos_difference, euler_angle_difference)).shape))
     # combine position and orientation differences
     state_adjustament = np.matmul(kalman_gain, np.vstack((pos_difference, euler_angle_difference)))  
-    rospy.loginfo("\nState adjustament {}".format(state_adjustament))
+    rospy.logdebug("\nState adjustament {}".format(state_adjustament))
 
     # add state_adjustament
     #---- POSITION ----#
     updated_state_position = np.add(np.array([motion_model_estimated_state.pose.pose.position.x, motion_model_estimated_state.pose.pose.position.y, motion_model_estimated_state.pose.pose.position.z]), 
                                     np.array(state_adjustament[:3].transpose()))
-    rospy.loginfo("\nUpdated state position {}".format(updated_state_position))
+    rospy.logdebug("\nUpdated state position {}".format(updated_state_position))
 
     #---- ORIENTATION ----#
     q_state_adjustament = tf.transformations.quaternion_from_euler(state_adjustament[3], state_adjustament[4], state_adjustament[5])
@@ -581,11 +567,13 @@ def update_with_kf(measured_robot_state: PoseWithCovarianceStamped, motion_model
     # formula to use: P_{k} = P_{k} - K*P_{k}
     covariance_update = np.subtract(motion_model_estimated_state_covariance, 
                         np.matmul(kalman_gain, motion_model_estimated_state_covariance))
-    estimated_robot_pose.covariance = list(covariance_update.flatten())
-    
-    rospy.loginfo("\nEstimated Robot Pose with KF: {}".format(estimated_robot_pose))
+    estimated_robot_pose.covariance = covariance_update.flatten()
+    estimated_robot_pose_stamped.pose = estimated_robot_pose
+    estimated_robot_pose_stamped.header.stamp = rospy.Time.now()
+    estimated_robot_pose_stamped.header.frame_id = 'odom'
+    rospy.loginfo("\nEstimated Robot Pose with KF: {}".format(estimated_robot_pose_stamped))
 
-    return estimated_robot_pose
+    return estimated_robot_pose_stamped
 
 def initialize_robot_state(tf_listener: tf.listener):
     """Initialize the robot state by setting the motion_model_estimated_state and initial_measure_cartesian_odom global variables
@@ -600,7 +588,7 @@ def initialize_robot_state(tf_listener: tf.listener):
 
     # get the initial pose from base_footprint to odom
     global initial_pose
-    initial_pose = get_current_pose(tf_listener=tf_listener, start_frame="base_footprint", end_frame="odom")
+    initial_pose = get_current_pose(tf_listener=tf_listener, start_frame="odom", end_frame="base_footprint")
     # Initialize the motion_model_estimated_state with the supposed known initial position
     global motion_model_estimated_state
     #----INITIAL POSE----#
@@ -614,7 +602,7 @@ def initialize_robot_state(tf_listener: tf.listener):
             if i == 2:
                 motion_model_estimated_state.pose.covariance[diagonal_index] = 1000000000000.0 # since the robot is planar and the z term is not estimated
             else:
-                motion_model_estimated_state.pose.covariance[diagonal_index] = 10**-5 # the initial pose is supposed known
+                motion_model_estimated_state.pose.covariance[diagonal_index] = 10**-5 # the initial pose is supposed known 
         else:
             if i == 3 or i == 4:
                 motion_model_estimated_state.pose.covariance[diagonal_index] = 1000000000000.0 # since the robot is planar and the roll and pitch are not estimated
@@ -626,7 +614,6 @@ def initialize_robot_state(tf_listener: tf.listener):
     motion_model_estimated_state.header.seq = seq_cnt
     motion_model_estimated_state.header.stamp = rospy.Time.now()
     motion_model_estimated_state.header.frame_id='odom'
-    motion_model_estimated_state.child_frame_id='base_footprint'
     # get initial measure
     global initial_measure_polar
     initial_measure_polar = get_laser_scan("/scan")
@@ -648,7 +635,48 @@ def initialize_robot_state(tf_listener: tf.listener):
                                                                                       initial_measure_cartesian_odom[90],
                                                                                       initial_measure_cartesian_odom[180],
                                                                                       initial_measure_cartesian_odom[270]))
+    rospy.loginfo("\nInitial robot state: \n{}".format(motion_model_estimated_state))   
 
+def update_state(waypoint):
+    """Update the robot state by setting the motion_model_estimated_state global variable
+
+    Parameters
+    ----------
+        tf_listener: tf_listener
+            Transform listener
+    Returns
+    -------
+    
+    """
+    # The estimate pose is equal to the previous waypoint
+    # where I exepect to be, in case of noise-free environment
+    pose_motion_model = convert_wp_to_pose(waypoint)
+    rospy.logdebug("Previous wp with odom: {}".format(pose_motion_model))    
+    
+    global motion_model_estimated_state
+    #---- POSE----#
+    motion_model_estimated_state.pose.pose = pose_motion_model
+    # update the covariance matrix
+    # we suppose that the error on the different axis is i.i.d (indipendent and equally distributed)
+    # Formula: P_{k} = F_{k}P_{k-1}F_{k}^T + Q_{k}, 
+    # The current predicted state uncertainty is equal to the previous uncertainty + the motion model uncertainty
+    for i in range(6):
+        diagonal_index = (i*6)+i
+        if i < 3:
+            if i == 0:
+                motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + (STD_DEV**2)
+            elif i == 1:
+                motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + (STD_DEV**2)
+            elif i == 2:
+                motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + 1000000000000.0
+
+        else:
+            if i == 5:
+                motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + (STD_DEV_ROT**2)
+            else:
+                motion_model_estimated_state.pose.covariance[diagonal_index] = motion_model_estimated_state.pose.covariance[diagonal_index] + 1000000000000.0
+    
+    rospy.loginfo("\nUpdate state based on motion model: \n{}".format(motion_model_estimated_state))   
 
 def main():
     rospy.init_node("exe_4_node")
@@ -669,63 +697,72 @@ def main():
     # get the path
     waypoints = utils.create_path()
     marker_array = utils.create_markers(waypoints)
-    rospy.loginfo("Publishing markers")
+    rospy.loginfo("\nPublishing markers")
     marker_array_pub.publish(marker_array)
 
-    rospy.loginfo("Start following the planned trajectory")
+    rospy.loginfo("\nStart following the planned trajectory")
     
     for i in range(len(waypoints)):
+        rospy.loginfo("\n###########################################\n")
+        rospy.loginfo("\nWhere the robot is, with respect to odom: \n{}".format(get_current_pose(tf_listener, 'odom', 'base_footprint')))
+        # compute x^{pred}_{k}    
         if i == 0:
             # Prediciton step
             # initialize robot state
             initialize_robot_state(tf_listener=tf_listener)
+        else:
+            # Prediction step
+            # where the robot is supposed to be, based on motion model
+            # The belief represent the previous waypoint, since the command is computed to reach the wp,
+            # but due to the noise in motion model we have some uncertainty 
+            update_state(waypoints[i-1])
         
         # Compute measured robot state
         measured_robot_state = measure_world("/scan", "/imu", "/odom",tf_listener)
+        rospy.loginfo("\nState measured with sensor, with respect to odom \n{}".format(measured_robot_state))
         # Update step
         global motion_model_estimated_state
-        robot_state = update_with_kf(measured_robot_state=measured_robot_state, motion_model_estimated_state=motion_model_estimated_state,
+        robot_state_kf = update_with_kf(measured_robot_state=measured_robot_state, motion_model_estimated_state=motion_model_estimated_state,
                                     motion_model_state_pub=motion_model_state_pub, measured_state_pub=measured_state_pub, use_robot_pose_ekf=False)
-        motion_model_estimated_state.pose = robot_state
-
-        key = input("Press any key to continue: ")
-        rospy.loginfo("Waypoint {} - {}".format(i+1, waypoints[i]))
-        
+        motion_model_estimated_state.pose.covariance = robot_state_kf.pose.covariance
+        key = input("Press any key to continue: ")  
+        rospy.loginfo("\nWaypoint {} - {}".format(i+1, waypoints[i]))
         # get desired robot pose
         desired_pose = convert_wp_to_pose(waypoints[i])
-        robot_pose = robot_state.pose
-        # convert from odom_combined to base footprint
+        robot_pose = robot_state_kf.pose.pose
+       
+        # convert from odom to base footprint, in order to compute the displacement with respect to the robot
         robot_pose_base_footprint_odom = Pose()
-        R_base_footprint_odom_combined = np.zeros((4,4))
-        R_base_footprint_odom_combined[3][3] = 1
-        R_base_footprint_odom_combined[:3, :3] = np.array(tf.transformations.quaternion_matrix([robot_pose.orientation.x, robot_pose.orientation.y,
-                                                                                                robot_pose.orientation.z, robot_pose.orientation.w]))[:3, :3]
-        R_base_footprint_odom_combined[:3,:3] = R_base_footprint_odom_combined[:3,:3].transpose()
+        R_base_footprint_odom = np.zeros((4,4))
+        R_base_footprint_odom[3][3] = 1
+        R_base_footprint_odom[:3, :3] = np.array(tf.transformations.quaternion_matrix([robot_pose.orientation.x, robot_pose.orientation.y,
+                                                                                        robot_pose.orientation.z, robot_pose.orientation.w]))[:3, :3]
+        R_base_footprint_odom[:3, :3] = R_base_footprint_odom[:3, :3].transpose()
         
         # position
-        p_base_footprint_odom_combined = -np.matmul(R_base_footprint_odom_combined[:3, :3], 
+        p_base_footprint_odom_combined = -np.matmul(R_base_footprint_odom[:3, :3], 
                                                 np.array([robot_pose.position.x, robot_pose.position.y, robot_pose.position.z]).transpose())
-        rospy.loginfo("p: {}".format(p_base_footprint_odom_combined))
 
         robot_pose_base_footprint_odom.position.x = p_base_footprint_odom_combined[0]
         robot_pose_base_footprint_odom.position.y = p_base_footprint_odom_combined[1]
         robot_pose_base_footprint_odom.position.z = p_base_footprint_odom_combined[2]
         # orientataion
-        quaternion_base_footprint_odom_combined = tf.transformations.quaternion_from_matrix(R_base_footprint_odom_combined)
-        robot_pose_base_footprint_odom.orientation.x = quaternion_base_footprint_odom_combined[0]
-        robot_pose_base_footprint_odom.orientation.y = quaternion_base_footprint_odom_combined[1]
-        robot_pose_base_footprint_odom.orientation.z = quaternion_base_footprint_odom_combined[2]
-        robot_pose_base_footprint_odom.orientation.w = quaternion_base_footprint_odom_combined[3]
+        quaternion_base_footprint_odom = tf.transformations.quaternion_from_matrix(R_base_footprint_odom)
+        robot_pose_base_footprint_odom.orientation.x = quaternion_base_footprint_odom[0]
+        robot_pose_base_footprint_odom.orientation.y = quaternion_base_footprint_odom[1]
+        robot_pose_base_footprint_odom.orientation.z = quaternion_base_footprint_odom[2]
+        robot_pose_base_footprint_odom.orientation.w = quaternion_base_footprint_odom[3]
 
+        rospy.logdebug("\nPose with respect to base_footprint\n{}".format(robot_pose_base_footprint_odom))
         # compute the difference between the current pose and the desired one
-        delta_x, delta_y, delta_theta,  angle_x_base_footprint_displacement = compute_pose_difference(current_pose=robot_pose, desired_pose=desired_pose)
+        delta_x, delta_y, delta_theta,  angle_x_base_footprint_displacement = compute_pose_difference(current_pose=robot_pose_base_footprint_odom, desired_pose=desired_pose)
         
         # compute the time needed to reach the desired pose with a given velocity
-        rospy.loginfo("Move toward the waypoint....")
+        rospy.loginfo("\nMove toward the waypoint....")
         move_robot(cmd_vel_pub, delta_x, delta_y, delta_theta, angle_x_base_footprint_displacement)
 
         while not REACHED_WP:
             pass
-    
+
 if __name__ == '__main__':
     main()

@@ -32,7 +32,7 @@ def stop(pub):
     pub.publish(cmd_vel)
 
 def check_for_obstacle():
-    rospy.loginfo("Check for obstable")
+    rospy.loginfo("\nCheck for obstable")
     
     # get message
     laser_scan_msg = rospy.wait_for_message(LASER_SCAN_TOPIC, LaserScan)
@@ -57,7 +57,7 @@ def main():
         for dir, obstacle_flag in enumerate(obstacle_flag_list):
             if obstacle_flag:
                 stop(cmd_vel_publisher)
-                rospy.loginfo("Obstacle found, at {}".format(dir*90))
+                rospy.loginfo("\nObstacle found, at {}".format(dir*90))
                 if dir == 0:
                     # obstacle in front of the robot
                     # is there any obstacle left or right?
@@ -70,9 +70,9 @@ def main():
                         move(cmd_vel_publisher, turn=False)
                 break
             else:
-                rospy.loginfo("Obstacle not found, keep going")
+                rospy.loginfo("\nObstacle not found, keep going")
                 move(cmd_vel_publisher)
 
 if __name__ == '__main__':
-    rospy.loginfo("Starting random walker")
+    rospy.loginfo("\nStarting random walker")
     main()
