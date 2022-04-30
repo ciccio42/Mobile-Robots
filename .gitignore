@@ -5,5 +5,4 @@ devel
 logs
 turtlebot3_simulations
 robot_pose_ekf
-src/*
-!src/exercises
+src
