@@ -6,5 +6,3 @@ logs
 turtlebot3_simulations
 robot_pose_ekf
 odometry_ex
-src
-!/src/exercises/
