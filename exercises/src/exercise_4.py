@@ -689,11 +689,6 @@ def main():
 
     tf_listener.waitForTransform("/odom", "/imu_link", rospy.Time(), rospy.Duration(20.0))
     
-    # motion model robot state publisher
-    measured_state_pub = rospy.Publisher('turtlebot/laser_scan_pose', Odometry, queue_size=10)
-    # measured robot state publisher 
-    motion_model_state_pub = rospy.Publisher('turtlebot/motion_model_pose', Odometry, queue_size=10)
-
     # get the path
     waypoints = utils.create_path()
     marker_array = utils.create_markers(waypoints)
@@ -722,8 +717,7 @@ def main():
         rospy.loginfo("\nState measured with sensor, with respect to odom \n{}".format(measured_robot_state))
         # Update step
         global motion_model_estimated_state
-        robot_state_kf = update_with_kf(measured_robot_state=measured_robot_state, motion_model_estimated_state=motion_model_estimated_state,
-                                    motion_model_state_pub=motion_model_state_pub, measured_state_pub=measured_state_pub, use_robot_pose_ekf=False)
+        robot_state_kf = update_with_kf(measured_robot_state=measured_robot_state, motion_model_estimated_state=motion_model_estimated_state)
         motion_model_estimated_state.pose.covariance = robot_state_kf.pose.covariance
         key = input("Press any key to continue: ")  
         rospy.loginfo("\nWaypoint {} - {}".format(i+1, waypoints[i]))

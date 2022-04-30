@@ -10,9 +10,9 @@ import math
 # MAX LINEAR SPEED
 V_MAX = 0.20
 # MAX ANGULAR SPEED
-OMEGA_MAX = 0.20
+OMEGA_MAX = 0.10
 # TIME TO REACH DESIDER POSITION
-TIME = 3 # s
+TIME = 5 # s
 # Flag to consider the user input valid
 USER_INPUT_VALID = True
 REACHED_WP = True
@@ -21,17 +21,17 @@ ALIGNMENT_COMPLETE = False
 # set the mean and std. var for guassian noise on linear motion model
 MEAN = 0.0 # m
 STD_DEV = 0.2 # m 
-CLIP_ON_VARIATION_MOTION_MODEL = 0.5 # correspond to the 99-th percentile
+CLIP_ON_VARIATION_MOTION_MODEL = 0.4 # correspond to the 95-th percentile
 
 # set the mean and std.var for rotation in motion model
 MEAN_ROT = 0.0 # rad
-STD_DEV_ROT = 0.06 # rad
+STD_DEV_ROT = 0.006 # rad
 
 # set the mean and std. var for laser scan estimation
 MEAN_LASER_X = 0.0
-STD_DEV_LASER_VAR_X = 0.4
+STD_DEV_LASER_VAR_X = 0.3
 MEAN_LASER_Y = 0.0
-STD_DEV_LASER_VAR_Y = 0.4
+STD_DEV_LASER_VAR_Y = 0.3
 MEAN_ORIENTATION_IMU = 0.0
 STD_DEV_ORIENTATION_IMU = 0.01
 
@@ -102,11 +102,11 @@ def convert_polar_to_cartesian(ray: float, angle: float):
     y = ray * math.sin(angle)
     return [x,y]
 
-def trapezoidal_motion(cmd_vel_pub: rospy.Publisher,delta_x):
+def trapezoidal_motion(cmd_vel_pub: rospy.Publisher,delta):
     t_f = 10.0
-    vel_c = 2 * (delta_x) / t_f
+    vel_c = 2 * (delta) / t_f
     pos_i = 0
-    pos_f = delta_x
+    pos_f = delta
 
     t_c = (pos_i-pos_f + (vel_c * t_f))/(vel_c)
     acc_c = (vel_c**2 ) /(pos_i-pos_f + (vel_c * t_f))

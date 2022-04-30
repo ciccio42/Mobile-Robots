@@ -20,3 +20,7 @@ catkin build
 source devel/setup.bash
 roslaunch exercises demo_[NUM_EXERCISE].launch # NUM_EXERCISE = 1,2,3,4
 ```
+
+## Organization
+* In *exercises* folder you can find the code
+* In *video_demo* folder you can find the videos
