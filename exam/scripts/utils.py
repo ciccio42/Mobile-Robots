@@ -1,10 +1,14 @@
-from turtle import distance
-from numpy import angle
 import rospy
 from visualization_msgs.msg import MarkerArray, Marker
-from geometry_msgs.msg import Pose, Twist
+from geometry_msgs.msg import Pose, Twist, PoseStamped, PoseWithCovarianceStamped, PoseWithCovariance
+from move_base_msgs.msg import MoveBaseActionGoal, MoveBaseGoal
+from actionlib_msgs.msg import GoalID
+import tf
 import math
+import yaml
+import numpy as np
 
+SEQ = 0
 
 ##---- CONSTANT DEFINITION ----#
 # MAX LINEAR SPEED
@@ -35,35 +39,45 @@ STD_DEV_LASER_VAR_Y = 0.3
 MEAN_ORIENTATION_IMU = 0.0
 STD_DEV_ORIENTATION_IMU = 0.01
 
+def read_configuration_file(path_file):
+    
+    def get_wps(file_reader):
+        # create a sequence of waypoits [x,y,theta], with respect to map
+        waypoints = []
+        for wp in file_reader['waypoints']:
+            waypoints.append(wp)
 
-def create_path():
-    # create a sequence of waypoits [x,y,theta], with respect to map
-    waypoints = []
-       
-    # move forward of 0.5 m along the x
-    # waypoints.append([0.5, 0, 0])
-    
-    # turn right
-    waypoints.append([0.0, -1.0, -math.pi/2])
-    
-    # turn left
-    waypoints.append([1.0, -1.0, 0])
-    
-    # move forward
-    waypoints.append([1.0, 0.0, math.pi/2])
+        return waypoints
 
-    # move forward
-    waypoints.append([1.0, 1.0, math.pi/2])
-    
-    # turn left
-    waypoints.append([0.0, 1.0, math.pi])
-    
-    # go to starting point
-    waypoints.append([0, 0.0, -math.pi/2])
+    def get_initial_pose(file_reader):
+        pose = file_reader['initial_pose']
+        pose_stamped_with_covariance = PoseWithCovarianceStamped()
+        #---- Header ----#
+        pose_stamped_with_covariance.header.seq = 0
+        rospy.loginfo(rospy.Time.now())
+        pose_stamped_with_covariance.header.stamp = rospy.Time.now()
+        pose_stamped_with_covariance.header.frame_id = "map"
+        #---- Pose With Covariance ----#
+        pose_with_covariance = PoseWithCovariance()
+        pose_with_covariance.pose.position.x = pose[0]
+        pose_with_covariance.pose.position.y = pose[1]
+        pose_with_covariance.pose.position.z = 0.0
+        orientation = tf.transformations.quaternion_from_euler(0.0, 0.0, pose[2])
+        pose_with_covariance.pose.orientation.x = orientation[0]
+        pose_with_covariance.pose.orientation.y = orientation[1]
+        pose_with_covariance.pose.orientation.z = orientation[2]
+        pose_with_covariance.pose.orientation.w = orientation[3]
+        pose_with_covariance.covariance = list(np.zeros(36))        
+        pose_stamped_with_covariance.pose = pose_with_covariance
+        return pose_stamped_with_covariance
 
-    return waypoints
-    
+    with open(path_file, 'r') as f:
+        file_reader = yaml.load(f, Loader=yaml.FullLoader)
 
+    waypoints = get_wps(file_reader)
+    initial_pose = get_initial_pose(file_reader=file_reader)
+    return waypoints, initial_pose
+    
 def create_markers(waypoints):
     marker_array = MarkerArray()
     marker_array.markers = []
@@ -95,6 +109,42 @@ def create_markers(waypoints):
         m.id = id
         id += 1
     return marker_array
+
+def create_goal_msg(wp)->MoveBaseActionGoal:
+    stamp = rospy.Time.now()
+    #---- GOAL ----#
+    move_base_action_goal = MoveBaseActionGoal()
+    # header
+    global SEQ
+    move_base_action_goal.header.seq = SEQ
+    SEQ += 1 
+    move_base_action_goal.header.stamp = stamp
+    move_base_action_goal.header.frame_id = 1
+    # goal id
+    move_base_action_goal.goal_id.stamp = stamp
+    move_base_action_goal.goal_id.id = "wp_goal"
+    # move base goal
+    move_base_goal = MoveBaseGoal()
+    #---- Pose Stamped ----#
+    pose_stamped = PoseStamped()
+    #---- Header ----#
+    pose_stamped.header.stamp = stamp
+    pose_stamped.header.frame_id = "map"
+    #---- Pose ----#
+    pose = Pose()
+    pose.position.x = wp[0]
+    pose.position.y = wp[1]
+    pose.position.z = 0.0
+    orientation = tf.transformations.quaternion_from_euler(0.0, 0.0, wp[2])
+    pose.orientation.x = orientation[0]
+    pose.orientation.y = orientation[1]
+    pose.orientation.z = orientation[2]
+    pose.orientation.w = orientation[3]
+    pose_stamped.pose = pose
+    move_base_goal.target_pose = pose_stamped
+    move_base_action_goal.goal = move_base_goal
+    
+    return move_base_action_goal
 
 def convert_polar_to_cartesian(ray: float, angle: float):
     

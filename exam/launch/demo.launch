@@ -1,0 +1,21 @@
+<launch>
+  
+    <!--run gazebo-->
+    <include file="$(find turtlebot3_gazebo)/launch/turtlebot3_world.launch">        
+      <arg name="x_pos" default="-2.0"/>
+      <arg name="y_pos" default="0.0"/>
+      <arg name="z_pos" default="0.0"/>
+    </include>
+
+    <!--run rviz-->
+    <include file="$(find turtlebot3_navigation)/launch/turtlebot3_navigation.launch" >
+        <arg name="map_file" value="$(find exam)/maps/map_base.yaml" />
+    </include>
+
+    <!--run teleop key-->
+    <!--include file="$(find turtlebot3_teleop)/launch/turtlebot3_teleop_key.launch" /-->
+
+    <!-- run application node -->
+    <!--node name="navigation_node" pkg="exam" type="main.py" output="screen" /-->
+
+</launch>
