@@ -22,11 +22,6 @@ USER_INPUT_VALID = True
 REACHED_WP = True
 ALIGNMENT_COMPLETE = False
 
-# set the mean and std. var for guassian noise on linear motion model
-MEAN = 0.0 # m
-STD_DEV = 0.2 # m 
-CLIP_ON_VARIATION_MOTION_MODEL = 0.4 # correspond to the 95-th percentile
-
 # set the mean and std.var for rotation in motion model
 MEAN_ROT = 0.0 # rad
 STD_DEV_ROT = 0.006 # rad
