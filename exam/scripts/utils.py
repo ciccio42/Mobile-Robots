@@ -7,6 +7,7 @@ import tf
 import math
 import yaml
 import numpy as np
+import csv
 
 SEQ = 0
 
@@ -33,6 +34,47 @@ MEAN_LASER_Y = 0.0
 STD_DEV_LASER_VAR_Y = 0.3
 MEAN_ORIENTATION_IMU = 0.0
 STD_DEV_ORIENTATION_IMU = 0.01
+
+
+def read_csv_file(path_file):
+    waypoints = []
+
+    def get_initial_pose_csv(row):
+        pose = [float(row[0]), float(row[1]), 0.0]
+        pose_stamped_with_covariance = PoseWithCovarianceStamped()
+        #---- Header ----#
+        pose_stamped_with_covariance.header.seq = 0
+        rospy.loginfo(rospy.Time.now())
+        pose_stamped_with_covariance.header.stamp = rospy.Time.now()
+        pose_stamped_with_covariance.header.frame_id = "map"
+        #---- Pose With Covariance ----#
+        pose_with_covariance = PoseWithCovariance()
+        pose_with_covariance.pose.position.x = pose[0]
+        pose_with_covariance.pose.position.y = pose[1]
+        pose_with_covariance.pose.position.z = 0.0
+        orientation = tf.transformations.quaternion_from_euler(0.0, 0.0, pose[2])
+        pose_with_covariance.pose.orientation.x = orientation[0]
+        pose_with_covariance.pose.orientation.y = orientation[1]
+        pose_with_covariance.pose.orientation.z = orientation[2]
+        pose_with_covariance.pose.orientation.w = orientation[3]
+        pose_with_covariance.covariance = list(np.zeros(36))        
+        pose_stamped_with_covariance.pose = pose_with_covariance
+        return pose_stamped_with_covariance
+
+    with open(path_file) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=' ')
+        for i, row in enumerate(csv_reader):
+            # start position
+            if i == 0:
+                initial_pose = get_initial_pose_csv(row)
+            # goal position
+            elif i == 1:
+                goal_wp = [float(row[0]), float(row[1]), 0.0]
+            else:
+                waypoints.append([float(row[0]), float(row[1]), 0.0])
+        waypoints.append(goal_wp)
+    return waypoints, initial_pose
+                
 
 def read_configuration_file(path_file):
     
@@ -68,6 +110,7 @@ def read_configuration_file(path_file):
 
     with open(path_file, 'r') as f:
         file_reader = yaml.load(f, Loader=yaml.FullLoader)
+
 
     waypoints = get_wps(file_reader)
     initial_pose = get_initial_pose(file_reader=file_reader)

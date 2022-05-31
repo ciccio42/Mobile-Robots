@@ -14,7 +14,7 @@ sys.path.append(utils_lib_path)
 import utils
 
 # waypoints file path
-conf_file_path = os.path.join(pkg_path, "config/conf.yaml")
+conf_file_path = os.path.join(pkg_path, "config/conf.csv")
 
 def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient):
     goal = utils.create_goal_msg(wp)
@@ -43,11 +43,12 @@ if __name__ == '__main__':
     move_base_client.wait_for_server()
 
     # get the path waypoints
-    waypoints, initial_pose = utils.read_configuration_file(conf_file_path)
+    waypoints, initial_pose = utils.read_csv_file(conf_file_path)
     rospy.loginfo(f"Waypoints: {waypoints}")
 
     rospy.loginfo("Publishing initial pose....")
     rospy.loginfo(f"Initial Pose {initial_pose}")
+    rospy.loginfo("\n\n\n\n\n\n\n\n ###########")
     initial_pose_pub.publish(initial_pose)
     
     rate.sleep()
