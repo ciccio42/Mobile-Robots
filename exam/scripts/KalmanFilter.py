@@ -102,8 +102,8 @@ class KalmanFilter:
         # compute delta_s
         self.current_right_wheel, self.current_left_wheel = self._read_wheel_joints()
         # circumference * number of rotations = traveled distance 
-        delta_s_right =  ((self.current_right_wheel/(2*math.pi))*(2*math.pi*WHEEL_RADIUS)) - ((self.previous_right_wheel/(2*math.pi))*(2*math.pi*WHEEL_RADIUS)) 
-        delta_s_left = ((self.current_left_wheel/(2*math.pi))*(2*math.pi*WHEEL_RADIUS)) - ((self.previous_left_wheel/(2*math.pi))*(2*math.pi*WHEEL_RADIUS))
+        delta_s_right =  (self.current_right_wheel*WHEEL_RADIUS) - (self.previous_right_wheel*WHEEL_RADIUS)
+        delta_s_left = (self.current_left_wheel*WHEEL_RADIUS) - (self.previous_left_wheel*WHEEL_RADIUS)
         rospy.logdebug(f"\nDelta s right {delta_s_right} - Delta s left {delta_s_left}")
         delta_s = (delta_s_right+delta_s_left)/2
         self.previous_right_wheel = self.current_right_wheel
@@ -157,7 +157,6 @@ class KalmanFilter:
         current_covariance = np.add(covariance_motion, covariance_command)        
         self.predicted_state.pose.covariance = list(np.array(current_covariance).flatten())
             
-
     def measure():
         pass
 
@@ -170,12 +169,13 @@ class KalmanFilter:
         -------
         """
         self.updated_state = copy.deepcopy(self.predicted_state)
+        
 if __name__ == '__main__':
     rospy.init_node("ekf_test")
     rate = rospy.Rate(30)
     initial_pose = Pose()
-    initial_pose.position.x = -2.0
-    initial_pose.position.y = .0
+    initial_pose.position.x = 0.0
+    initial_pose.position.y = 0.0
     initial_pose.position.z = .0
     initial_pose.orientation.x = .0
     initial_pose.orientation.y = .0

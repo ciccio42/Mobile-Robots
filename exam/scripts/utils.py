@@ -53,11 +53,24 @@ def read_csv_file(path_file):
         pose_with_covariance.pose.position.y = pose[1]
         pose_with_covariance.pose.position.z = 0.0
         orientation = tf.transformations.quaternion_from_euler(0.0, 0.0, pose[2])
-        pose_with_covariance.pose.orientation.x = orientation[0]
-        pose_with_covariance.pose.orientation.y = orientation[1]
-        pose_with_covariance.pose.orientation.z = orientation[2]
-        pose_with_covariance.pose.orientation.w = orientation[3]
-        pose_with_covariance.covariance = list(np.zeros(36))        
+        pose_with_covariance.pose.orientation.x = 0.0 #orientation[0]
+        pose_with_covariance.pose.orientation.y = 0.0 #orientation[1]
+        pose_with_covariance.pose.orientation.z = 0.0 #orientation[2]
+        pose_with_covariance.pose.orientation.w = 1.0 #orientation[3]
+        pose_with_covariance.covariance = list(np.zeros(36, np.float))
+        for i in range(6):
+            diagonal_index = (i*6)+i
+            if i < 3:
+                if i == 2:
+                    pose_with_covariance.covariance[diagonal_index] = 1000000000000.0 # since the robot is planar and the z term is not estimated
+                else:
+                    pose_with_covariance.covariance[diagonal_index] = 10**-5 # the initial pose is supposed known 
+            else:
+                if i == 3 or i == 4:
+                    pose_with_covariance.covariance[diagonal_index] = 1000000000000.0 # since the robot is planar and the roll and pitch are not estimated
+                else:
+                    pose_with_covariance.covariance[diagonal_index] = 0.001 # the initial orientation is supposed known        
+        
         pose_stamped_with_covariance.pose = pose_with_covariance
         return pose_stamped_with_covariance
 
@@ -174,10 +187,10 @@ def create_goal_msg(wp)->MoveBaseActionGoal:
     pose.position.y = wp[1]
     pose.position.z = 0.0
     orientation = tf.transformations.quaternion_from_euler(0.0, 0.0, wp[2])
-    pose.orientation.x = orientation[0]
-    pose.orientation.y = orientation[1]
-    pose.orientation.z = orientation[2]
-    pose.orientation.w = orientation[3]
+    pose.orientation.x = 0.0 #orientation[0]
+    pose.orientation.y = 0.0 #orientation[1]
+    pose.orientation.z = 0.0 #orientation[2]
+    pose.orientation.w = 1.0 #orientation[3]
     pose_stamped.pose = pose
     move_base_goal.target_pose = pose_stamped
     move_base_action_goal.goal = move_base_goal
