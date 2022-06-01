@@ -81,6 +81,7 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
             # start position
             if i == 0:
                 initial_pose = get_initial_pose_csv(row)
+                waypoints.append([float(row[0]), float(row[1]), 0.0])
             # goal position
             elif i == 1:
                 goal_wp = [float(row[0]), float(row[1]), 0.0]
