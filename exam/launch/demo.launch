@@ -1,5 +1,10 @@
 <launch>
-  
+    <param name="initial_cov_xx" type="double" value="1000" />
+    <param name="initial_cov_yy" type="double" value="1000" />
+    <param name="max_particles" type="int" value="5000000" />
+
+    
+
     <!--run gazebo-->
     <include file="$(find map2gazebo)/launch/turtlebot3_world.launch">        
       <arg name="x_pos" default="-27.0"/>
