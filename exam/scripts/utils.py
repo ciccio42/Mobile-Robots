@@ -1,3 +1,4 @@
+from typing import List, Tuple
 import rospy
 from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Pose, Twist, PoseStamped, PoseWithCovarianceStamped, PoseWithCovariance
@@ -36,10 +37,10 @@ MEAN_ORIENTATION_IMU = 0.0
 STD_DEV_ORIENTATION_IMU = 0.01
 
 
-def read_csv_file(path_file):
+def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
     waypoints = []
 
-    def get_initial_pose_csv(row):
+    def get_initial_pose_csv(row) -> PoseWithCovarianceStamped:
         pose = [float(row[0]), float(row[1]), 0.0]
         pose_stamped_with_covariance = PoseWithCovarianceStamped()
         #---- Header ----#

@@ -7,15 +7,15 @@
 
     <!--run gazebo-->
     <include file="$(find map2gazebo)/launch/turtlebot3_world.launch">        
+      <arg name="x_pos" default="-24.0"/>
+      <arg name="y_pos" default="-0.5"/>
+      <arg name="z_pos" default="0.0"/>
     </include>
 
     <!--run rviz-->
     <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
         <arg name="map_file" value="$(find exam)/maps/map6.yaml" />
     </include>
-
-    <!--run teleop key-->
-    <!--include file="$(find turtlebot3_teleop)/launch/turtlebot3_teleop_key.launch" /-->
 
     <!-- run application node -->
     <!--node name="navigation_node" pkg="exam" type="main.py" output="screen" /-->

@@ -5,6 +5,7 @@ import actionlib
 from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from move_base_msgs.msg import MoveBaseAction
+from gazebo_msgs.msg import ModelState
 
 # get the path to the current package
 rospack = rospkg.RosPack()
@@ -12,6 +13,11 @@ pkg_path = rospack.get_path('exam')
 utils_lib_path = os.path.join(pkg_path, "scripts")
 sys.path.append(utils_lib_path)
 import utils
+
+# Mean initialization error
+initialization_error_mean = 0.0
+# STD DEV initialization error
+initialization_error_std_dev = 50 #m
 
 # waypoints file path
 conf_file_path = os.path.join(pkg_path, "config/conf.csv")
@@ -28,7 +34,7 @@ def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient):
         rospy.loginfo("Waypoint reached")
         utils.compute_difference_current_pose_desired_pose(wp)
 
-def initialize_pose():
+def initialize_pose(initial_pose: PoseWithCovarianceStamped) -> PoseWithCovarianceStamped:
     pass
 
 if __name__ == '__main__':
@@ -37,6 +43,7 @@ if __name__ == '__main__':
     
     # initialize the robot pose
     initial_pose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=1)
+    gazebo_initial_pose_pub = rospy.Publisher('/gazebo/set_model_state', ModelState, queue_size=1)
 
     # create a move_base client
     move_base_client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
@@ -47,16 +54,16 @@ if __name__ == '__main__':
 
     # get the path waypoints
     waypoints, initial_pose = utils.read_csv_file(conf_file_path)
-    rospy.loginfo(f"Waypoints: {waypoints}")
-
     rospy.loginfo("Publishing initial pose....")
     rospy.loginfo(f"Initial Pose {initial_pose}")
-    rospy.loginfo("\n\n\n\n\n\n\n\n ###########")
-    #initial_pose_pub.publish(initial_pose)
+    initial_pose = initial_pose(initial_pose)
+    initial_pose_pub.publish(initial_pose)
+    rospy.loginfo(f"Waypoints: {waypoints}")
+    rospy.loginfo("###########")
     
     #rate.sleep()
     
-    input("Press any key to start the nvigation:")
+    input("Press any key to start the navigation:")
 
     for i, wp in enumerate(waypoints):
         rospy.loginfo(f"Waypoint number {i}\n{wp}")
