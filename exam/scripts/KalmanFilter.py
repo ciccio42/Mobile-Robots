@@ -174,8 +174,8 @@ if __name__ == '__main__':
     rospy.init_node("ekf_test")
     rate = rospy.Rate(30)
     initial_pose = Pose()
-    initial_pose.position.x = 0.0
-    initial_pose.position.y = 0.0
+    initial_pose.position.x = -2.0
+    initial_pose.position.y = -0.5
     initial_pose.position.z = .0
     initial_pose.orientation.x = .0
     initial_pose.orientation.y = .0
