@@ -23,7 +23,10 @@ def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient):
     rospy.loginfo(f"Waiting for result....")
     move_base_client.wait_for_result()
     result = move_base_client.get_result()
-    rospy.loginfo(f"Result {result}")
+    
+    if result == GoalStatus.SUCCEEDED:
+        rospy.loginfo("Waypoint reached")
+        utils.compute_difference_current_pose_desired_pose(wp)
 
 def initialize_pose():
     pass
@@ -49,10 +52,12 @@ if __name__ == '__main__':
     rospy.loginfo("Publishing initial pose....")
     rospy.loginfo(f"Initial Pose {initial_pose}")
     rospy.loginfo("\n\n\n\n\n\n\n\n ###########")
-    initial_pose_pub.publish(initial_pose)
+    #initial_pose_pub.publish(initial_pose)
     
-    rate.sleep()
+    #rate.sleep()
     
+    input("Press any key to start the nvigation:")
+
     for i, wp in enumerate(waypoints):
         rospy.loginfo(f"Waypoint number {i}\n{wp}")
         go_to_next_wp(wp=wp, move_base_client=move_base_client)

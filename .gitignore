@@ -3,3 +3,7 @@ odometry_ex/
 robot_pose_ekf/
 trajectory/
 exercise1/
+odometry_ex
+robot_pose_ekf
+turtlebot3_simulations
+laser_line_extraction
