@@ -1,5 +1,4 @@
-<launch>    
-
+<launch>
     <!--run gazebo-->
     <include file="$(find map2gazebo)/launch/turtlebot3_world.launch">        
       <arg name="x_pos" default="-25.0"/>
