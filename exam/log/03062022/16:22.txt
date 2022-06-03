@@ -1,0 +1,31 @@
+Start Simulation. 
+Start point: [-24.0, -9.5, 0.0] - Goal point: [-1.0, -0.1, 0.0]
+
+
+Start time: 11.607
+
+Waypoint number: 0
+[-24.0, -9.5, 0.0] ---- Waypoint reached in: 0.103 s
+
+Waypoint number: 1
+[-14.0, -9.5, 0.0] ---- Waypoint reached in: 40.903 s
+
+Waypoint number: 2
+[-3.5, -9.5, 0.0] ---- Waypoint reached in: 43.803 s
+
+Waypoint number: 3
+[7.0, -9.6, 0.0] ---- Waypoint reached in: 44.007 s
+
+Waypoint number: 4
+[17.0, -9.5, 0.0] ---- Waypoint reached in: 41.902 s
+
+Waypoint number: 5
+[17.0, -0.1, 0.0] ---- Waypoint reached in: 77.804 s
+
+Waypoint number: 6
+[7.6, -0.1, 0.0] ---- Waypoint reached in: 43.705 s
+
+Waypoint number: 7
+[-1.0, -0.1, 0.0] ---- Waypoint reached in: 35.507 s
+
+Goal reached in: 5.0 m 27.39300000000003 s

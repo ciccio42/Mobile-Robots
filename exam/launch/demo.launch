@@ -1,9 +1,9 @@
 <launch>
 
     <!--run gazebo-->
-    <include file="$(find map2gazebo)/launch/turtlebot3_world.launch">        
-      <arg name="x_pos" default="-27.0"/>
-      <arg name="y_pos" default="-7.5"/>
+    <include file="$(find map2gazebo)/launch/turtlebot3_world.launch">      
+      <arg name="x_pos" default="-24.0"/>
+      <arg name="y_pos" default="-9.5"/>
       <arg name="z_pos" default="0.0"/>
     </include>
 
@@ -13,6 +13,6 @@
     </include>
 
     <!-- run application node -->
-    <!--node name="navigation_node" pkg="exam" type="main.py" output="screen" /-->
+    <node name="navigation_node" pkg="exam" type="main.py" output="screen" />
 
 </launch>
