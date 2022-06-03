@@ -1,20 +1,18 @@
-<launch>
-    <param name="initial_cov_xx" type="double" value="1000" />
-    <param name="initial_cov_yy" type="double" value="1000" />
-    <param name="max_particles" type="int" value="5000000" />
-
-    
+<launch>    
 
     <!--run gazebo-->
     <include file="$(find map2gazebo)/launch/turtlebot3_world.launch">        
-      <arg name="x_pos" default="-27.0"/>
-      <arg name="y_pos" default="-7.5"/>
+      <arg name="x_pos" default="-25.0"/>
+      <arg name="y_pos" default="-5.5"/>
       <arg name="z_pos" default="0.0"/>
     </include>
 
     <!--run rviz-->
-    <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
+    <include file="$(find turtlebot3_navigation)/launch/turtlebot3_navigation.launch" >
         <arg name="map_file" value="$(find exam)/maps/map6.yaml" />
+    </include>
+
+    <include file="$(find laser_line_extraction)/launch/example.launch" >
     </include>
 
     <!-- run application node -->

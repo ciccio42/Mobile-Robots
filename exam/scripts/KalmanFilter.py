@@ -158,6 +158,7 @@ class KalmanFilter:
         self.predicted_state.pose.covariance = list(np.array(current_covariance).flatten())
             
     def measure():
+        # get current fitted lines
         pass
 
     def update(self):
