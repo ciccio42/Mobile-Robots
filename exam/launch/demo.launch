@@ -7,12 +7,12 @@
     </include>
 
     <!--run rviz-->
-    <include file="$(find turtlebot3_navigation)/launch/turtlebot3_navigation.launch" >
+    <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
         <arg name="map_file" value="$(find exam)/maps/map6.yaml" />
     </include>
 
-    <include file="$(find laser_line_extraction)/launch/example.launch" >
-    </include>
+    <!--include file="$(find laser_line_extraction)/launch/example.launch" >
+    </include-->
 
     <!-- run application node -->
     <!--node name="navigation_node" pkg="exam" type="main.py" output="screen" /-->
