@@ -15,6 +15,6 @@
     </include-->
 
     <!-- run application node -->
-    <!--node name="navigation_node" pkg="exam" type="main.py" output="screen" /-->
+    <node name="navigation_node" pkg="exam" type="main.py" output="screen" />
 
 </launch>
