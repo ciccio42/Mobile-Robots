@@ -1,20 +1,31 @@
 <launch>
+    <!--Args-->
+    <arg name="x_pos" default="-24.0"/>
+    <arg name="y_pos" default="-9.5"/>
+    <arg name="yaw_orientation" default="0.0"/>
+    
+    <!--Parameters-->
+    <param name="kalman" type="bool" value="False"/>
+
     <!--run gazebo-->
     <include file="$(find map2gazebo)/launch/turtlebot3_world.launch">        
-      <arg name="x_pos" default="-25.0"/>
-      <arg name="y_pos" default="-5.5"/>
+      <arg name="x_pos" default="$(arg x_pos)"/>
+      <arg name="y_pos" default="$(arg y_pos)"/>
       <arg name="z_pos" default="0.0"/>
     </include>
 
     <!--run rviz-->
     <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
-        <arg name="map_file" value="$(find exam)/maps/map6.yaml" />
+      <arg name="map_file" value="$(find exam)/maps/map6.yaml" />
+      <arg name="initial_pose_x" default="$(arg x_pos)"/>
+      <arg name="initial_pose_y" default="$(arg y_pos)"/>
+      <arg name="initial_pose_a" default="$(arg yaw_orientation)"/>
     </include>
 
     <!--include file="$(find laser_line_extraction)/launch/example.launch" >
     </include-->
 
     <!-- run application node -->
-    <node name="navigation_node" pkg="exam" type="main.py" output="screen" />
+    <!--node name="navigation_node" pkg="exam" type="main.py" output="screen" /-->
 
 </launch>

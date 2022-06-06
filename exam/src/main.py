@@ -23,6 +23,14 @@ utils_lib_path = os.path.join(pkg_path, "scripts")
 sys.path.append(utils_lib_path)
 import utils
 
+import argparse
+ 
+parser = argparse.ArgumentParser(description="Navigation Node parameters",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument("-num_path", "--path-file-number", default="1", help="Number of path file")
+parser.add_argument("-run_aip", "--run-automatic-initialization-procedure", default="False", help="Whether run the automatic initialization procedure or not")
+args = parser.parse_args()
+
 # Mean initialization error
 initialization_error_mean = 0.0
 # STD DEV initialization error
@@ -36,11 +44,7 @@ COVARIANCE_Y_THRESHOLD = 1 # m
 TIME_LIMIT_FOR_INITIAL_LOCALIZATION = 2*math.pi # The time required to complete one rotation around the z-axis
 
 # waypoints file path
-conf_file_path = os.path.join(pkg_path, "config/conf.csv")
-
-# log file 
-
-
+path_file_path = os.path.join(pkg_path, f"config/path_")
 
 def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time):
     goal = utils.create_goal_msg(wp)
@@ -124,8 +128,16 @@ def automatic_initialization_procedure():
             pass
 
 if __name__ == '__main__':
+
     rospy.init_node("navigation_node")
     rate = rospy.Rate(0.2)
+    
+    # complete the name of the path file
+    path_file_path = path_file_path + args.path_file_number + ".csv"
+    rospy.loginfo(f"Path under test {path_file_path}")
+    
+    
+    # create log file
     now = datetime.now()
     dt_string = now.strftime("%d%m%Y_%H:%M")
     folder = dt_string.split("_")[0]
@@ -133,7 +145,7 @@ if __name__ == '__main__':
     directory = str(pkg_path) + "/log/"+str(folder)
     if not os.path.exists(directory):
         os.makedirs(directory)
-    log_file = open(str(directory)+"/"+str(name)+".txt","w")
+    log_file = open(str(directory)+"/"+str(name)+f"_path_{args.path_file_number}"+".txt","w")
 
     # initialize the robot pose
     initial_pose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=1)
@@ -147,21 +159,26 @@ if __name__ == '__main__':
     move_base_client.wait_for_server()
 
     # get the path waypoints
-    waypoints, initial_pose = utils.read_csv_file(conf_file_path)
-    log_file.write(f"Start Simulation. \nStart point: {waypoints[0]} - Goal point: {waypoints[-1]}")
-    
+    waypoints, initial_pose = utils.read_csv_file(path_file_path)
+    #log_file.write(f"Start Simulation. \nStart point: {waypoints[0]} - Goal point: {waypoints[-1]}")
+    # publish waypoint markers
+    markers_pub = rospy.Publisher("/visualization_marker_array", MarkerArray, queue_size=100)
+    markers = utils.create_markers(waypoints)
+    markers_pub.publish(markers_pub)
     # log_file.close()
     # sys.exit()
     rospy.loginfo("Publishing initial pose....")
     rospy.loginfo(f"Initial Pose {initial_pose}")
-    # initial_pose = initialize_pose(initial_pose)
+    if args.run_automatic_initialization_procedure == "True":
+        initial_pose = initialize_pose(initial_pose)
     rospy.loginfo(f"Initial Pose {initial_pose}")
     initial_pose_pub.publish(initial_pose)
     rospy.loginfo(f"Waypoints: {waypoints}")
     rospy.loginfo("###########")
     
-    input("Press any key to start the initialization of localization:")
-    automatic_initialization_procedure()
+    if args.run_automatic_initialization_procedure == "True":
+        input("Press any key to start the initialization of localization:")
+        automatic_initialization_procedure()
 
     #rate.sleep()
     
@@ -180,5 +197,7 @@ if __name__ == '__main__':
     log_file.write(f"\n\nGoal reached in: {minutes} m {int(sec)} s")
     log_file.close()
     
+    """
     while(not rospy.is_shutdown()):
         rate.sleep()
+    """

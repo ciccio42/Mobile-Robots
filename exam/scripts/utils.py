@@ -75,6 +75,13 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
         pose_stamped_with_covariance.pose = pose_with_covariance
         return pose_stamped_with_covariance
 
+    def compute_wp_orientation(current_wp:list, next_wp:list) -> float:
+        # compute the difference vector between the current and next wp
+        diff_vector = np.subtract(np.array(next_wp), np.array(current_wp))
+        # compute the orientation between the current wp and the next one
+        return np.arctan2(diff_vector[1], diff_vector[0])
+    
+    previous_wp = []
     with open(path_file) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=' ')
         for i, row in enumerate(csv_reader):
@@ -82,15 +89,24 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
             if i == 0:
                 initial_pose = get_initial_pose_csv(row)
                 waypoints.append([float(row[0]), float(row[1]), 0.0])
+                previous_wp = [float(row[0]), float(row[1])]
             # goal position
             elif i == 1:
                 goal_wp = [float(row[0]), float(row[1]), 0.0]
             else:
+                # compute the orientation for the previous wp based on the current wp
+                wp_angle = compute_wp_orientation(previous_wp, [float(row[0]), float(row[1])])
+                waypoints[-1][2] = wp_angle
                 waypoints.append([float(row[0]), float(row[1]), 0.0])
+                previous_wp = [float(row[0]), float(row[1])]
+        # compute the orientation for the last wp before the goal
+        wp_angle = compute_wp_orientation(previous_wp, [goal_wp[0],goal_wp[1]])
+        waypoints[-1][2] = wp_angle
         waypoints.append(goal_wp)
+        rospy.loginfo(waypoints)
+        
     return waypoints, initial_pose
                 
-
 def read_configuration_file(path_file):
     
     def get_wps(file_reader):
@@ -138,7 +154,7 @@ def create_markers(waypoints):
     for i in range(len(waypoints)):
         # marker header 
         marker = Marker()
-        marker.header.frame_id = "odom"
+        marker.header.frame_id = "map"
         
         # marker field
         marker.type = Marker.SPHERE
