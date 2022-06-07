@@ -6,6 +6,14 @@
   <arg name="initial_pose_a" default="0.0"/>
 
   <!-- AMCL -->
+
+  <!-- <node pkg="amcl" type="amcl" name="amcl">
+	  <rosparam file="$(find exam)/launch/param/amcl.yaml" command="load" />
+    <param name="initial_pose_x"            value="$(arg initial_pose_x)"/>
+    <param name="initial_pose_y"            value="$(arg initial_pose_y)"/>
+    <param name="initial_pose_a"            value="$(arg initial_pose_a)"/>
+  </node> -->
+
   <node pkg="amcl" type="amcl" name="amcl">
 
     <param name="min_particles"             value="500"/>
