@@ -160,7 +160,6 @@ if __name__ == '__main__':
 
     # get the path waypoints
     waypoints, initial_pose = utils.read_csv_file(path_file_path)
-    #log_file.write(f"Start Simulation. \nStart point: {waypoints[0]} - Goal point: {waypoints[-1]}")
     # publish waypoint markers
     markers_pub = rospy.Publisher("/visualization_marker_array", MarkerArray, queue_size=100)
     markers = utils.create_markers(waypoints)
@@ -183,7 +182,7 @@ if __name__ == '__main__':
     #rate.sleep()
     
     input("Press any key to start the navigation:")
-    
+    log_file.write(f"Start Simulation. \nStart point: {waypoints[0]} - Goal point: {waypoints[-1]}")
     curr_time = rospy.Time.now().secs + (rospy.Time.now().nsecs * 10**-9)
     start_time = curr_time
     log_file.write(f"\n\n\nStart time: {curr_time}")

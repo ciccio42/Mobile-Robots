@@ -69,17 +69,33 @@ def main(default_file = None):
             print(f"{i}-th line {l}")
             cv.line(cdstP, (l[0], l[1]), (l[2], l[3]), (0,0,255), 1, cv.LINE_AA)
     
-    # convert points from pixel to continuos space
-    # each row  
-    lines_continous = np.zeros((len(linesP), 4))
-    for i in range(0, len(linesP)):
-        pass
-
     cv.imshow("Source", src_gaussian)
     cv.imshow("Detected Lines (in red) - Standard Hough Line Transform", cdst)
     cv.imshow("Detected Lines (in red) - Probabilistic Line Transform", cdstP)
+    cv.waitKey(0)
+
+    # convert points from pixel to continuos space
+    # each row is a line, [x1, y1][x2,y2]  
+    lines_continous_wrt_image_frame = np.zeros((len(linesP), 4))
+    for i in range(0, len(linesP)):
+        x1 = linesP[i][0][0] * MAP_RESOLUTION
+        y1 = linesP[i][0][1] * MAP_RESOLUTION
+        x2 = linesP[i][0][2] * MAP_RESOLUTION
+        y2 = linesP[i][0][3] * MAP_RESOLUTION
+        lines_continous_wrt_image_frame[i][0] = x1
+        lines_continous_wrt_image_frame[i][1] = y1
+        lines_continous_wrt_image_frame[i][2] = x2
+        lines_continous_wrt_image_frame[i][3] = y2
     
-    cv.waitKey()
+    # convert from image frame to 
+    A_plot_frame = np.zeros((3,3))
+    A_plot_frame[0][0] = 1
+    A_plot_frame[1][1] = -1
+    A_plot_frame[2][2] = 1
+    A_plot_frame[1][2] = src_numpy.shape[0] * MAP_RESOLUTION
+
+
+
     return 0
     
 if __name__ == "__main__":

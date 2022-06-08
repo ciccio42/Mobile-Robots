@@ -1,0 +1,8 @@
+Start Simulation. 
+Start point: [-24.0, -9.5, 0.0] - Goal point: [-1.0, -0.1, 0.0]
+
+
+Start time: 16.548000000000002
+
+Waypoint number: 0
+[-24.0, -9.5, 0.0]

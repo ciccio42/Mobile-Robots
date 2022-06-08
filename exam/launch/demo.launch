@@ -2,7 +2,7 @@
     <!--Args-->
     <arg name="x_pos" default="-24.0"/>
     <arg name="y_pos" default="-9.5"/>
-    <arg name="yaw_orientation" default="0.0"/>
+    <arg name="yaw_orientation" default="0"/>
     
     <!--Parameters-->
     <param name="kalman" type="bool" value="False"/>
@@ -17,9 +17,9 @@
     <!--run rviz-->
     <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
       <arg name="map_file" value="$(find exam)/maps/map6.yaml" />
-      <arg name="initial_pose_x" default="$(arg x_pos)"/>
+      <!--arg name="initial_pose_x" default="$(arg x_pos)"/>
       <arg name="initial_pose_y" default="$(arg y_pos)"/>
-      <arg name="initial_pose_a" default="$(arg yaw_orientation)"/>
+      <arg name="initial_pose_a" default="$(arg yaw_orientation)"/-->
     </include>
 
     <!--include file="$(find laser_line_extraction)/launch/example.launch" >

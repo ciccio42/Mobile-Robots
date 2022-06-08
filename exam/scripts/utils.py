@@ -40,8 +40,8 @@ STD_DEV_ORIENTATION_IMU = 0.01
 def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
     waypoints = []
 
-    def get_initial_pose_csv(row) -> PoseWithCovarianceStamped:
-        pose = [float(row[0]), float(row[1]), 0.0]
+    def get_initial_pose_csv(wp:list) -> PoseWithCovarianceStamped:
+        pose = [float(wp[0]), float(wp[1]), float(wp[2])]
         pose_stamped_with_covariance = PoseWithCovarianceStamped()
         #---- Header ----#
         pose_stamped_with_covariance.header.seq = 0
@@ -54,10 +54,10 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
         pose_with_covariance.pose.position.y = pose[1]
         pose_with_covariance.pose.position.z = 0.0
         orientation = tf.transformations.quaternion_from_euler(0.0, 0.0, pose[2])
-        pose_with_covariance.pose.orientation.x = 0.0 #orientation[0]
-        pose_with_covariance.pose.orientation.y = 0.0 #orientation[1]
-        pose_with_covariance.pose.orientation.z = 0.0 #orientation[2]
-        pose_with_covariance.pose.orientation.w = 1.0 #orientation[3]
+        pose_with_covariance.pose.orientation.x = float(orientation[0])
+        pose_with_covariance.pose.orientation.y = float(orientation[1])
+        pose_with_covariance.pose.orientation.z = float(orientation[2])
+        pose_with_covariance.pose.orientation.w = float(orientation[3])
         pose_with_covariance.covariance = list(np.zeros(36, np.float))
         for i in range(6):
             diagonal_index = (i*6)+i
@@ -87,7 +87,6 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
         for i, row in enumerate(csv_reader):
             # start position
             if i == 0:
-                initial_pose = get_initial_pose_csv(row)
                 waypoints.append([float(row[0]), float(row[1]), 0.0])
                 previous_wp = [float(row[0]), float(row[1])]
             # goal position
@@ -99,12 +98,15 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
                 waypoints[-1][2] = wp_angle
                 waypoints.append([float(row[0]), float(row[1]), 0.0])
                 previous_wp = [float(row[0]), float(row[1])]
+        
         # compute the orientation for the last wp before the goal
         wp_angle = compute_wp_orientation(previous_wp, [goal_wp[0],goal_wp[1]])
         waypoints[-1][2] = wp_angle
         waypoints.append(goal_wp)
+        waypoints[-1][2] = wp_angle
         rospy.loginfo(waypoints)
-        
+        # get the initial pose
+        initial_pose = get_initial_pose_csv(waypoints[0])
     return waypoints, initial_pose
                 
 def read_configuration_file(path_file):
@@ -131,10 +133,10 @@ def read_configuration_file(path_file):
         pose_with_covariance.pose.position.y = pose[1]
         pose_with_covariance.pose.position.z = 0.0
         orientation = tf.transformations.quaternion_from_euler(0.0, 0.0, pose[2])
-        pose_with_covariance.pose.orientation.x = orientation[0]
-        pose_with_covariance.pose.orientation.y = orientation[1]
-        pose_with_covariance.pose.orientation.z = orientation[2]
-        pose_with_covariance.pose.orientation.w = orientation[3]
+        pose_with_covariance.pose.orientation.x = float(orientation[0])
+        pose_with_covariance.pose.orientation.y = float(orientation[1])
+        pose_with_covariance.pose.orientation.z = float(orientation[2])
+        pose_with_covariance.pose.orientation.w = float(orientation[3])
         pose_with_covariance.covariance = list(np.zeros(36))        
         pose_stamped_with_covariance.pose = pose_with_covariance
         return pose_stamped_with_covariance
@@ -205,10 +207,10 @@ def create_goal_msg(wp)->MoveBaseActionGoal:
     pose.position.y = wp[1]
     pose.position.z = 0.0
     orientation = tf.transformations.quaternion_from_euler(0.0, 0.0, wp[2])
-    pose.orientation.x = 0.0 #orientation[0]
-    pose.orientation.y = 0.0 #orientation[1]
-    pose.orientation.z = 0.0 #orientation[2]
-    pose.orientation.w = 1.0 #orientation[3]
+    pose.orientation.x = float(orientation[0])
+    pose.orientation.y = float(orientation[1])
+    pose.orientation.z = float(orientation[2])
+    pose.orientation.w = float(orientation[3])
     pose_stamped.pose = pose
     move_base_goal.target_pose = pose_stamped
     move_base_action_goal.goal = move_base_goal
