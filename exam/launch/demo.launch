@@ -12,6 +12,7 @@
       <arg name="x_pos" default="$(arg x_pos)"/>
       <arg name="y_pos" default="$(arg y_pos)"/>
       <arg name="z_pos" default="0.0"/>
+      <arg name="yaw_orientation" default="$(yaw_orientation)"/>
       <arg name="gui" default="false"/>
     </include>
 
