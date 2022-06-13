@@ -1,28 +1,36 @@
-import cmd
-import math
-from tkinter import LEFT
-import rospy
+from re import L
+from typing import List, Tuple
+import rospy, rospkg
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
 import tf
 
+from laser_line_extraction.msg import LineSegment, LineSegmentList 
+
 import numpy as np
 import copy
+import math
+import os, sys
 
 # set the mean and std. var for guassian noise on linear motion model
 MEAN = 0.0 # m
 STD_DEV = 0.2 # m 
 CLIP_ON_VARIATION_MOTION_MODEL = 0.4 # correspond to the 95-th percentile
 
-#
+# Robot parameters
 WHEEL_DISTANCE = 0.287 # m
 WHEEL_RADIUS = 0.033 # m
+LIDAR_MAX_RANGE = 3.5 # m 
 
+# get the path to the current package
+rospack = rospkg.RosPack()
+pkg_path = rospack.get_path('exam')
+map_lines_file_path= os.path.join(pkg_path, "config/map_lines.npy")
 
 class KalmanFilter:
     
-    def __init__(self, initial_pose:Pose):
+    def __init__(self, initial_pose:Pose, map_lines_file_path = None):
         self.predicted_state = Odometry()
         self._initialize_state(self.predicted_state, initial_pose=initial_pose)
         self.last_time = rospy.Time.now()
@@ -34,6 +42,11 @@ class KalmanFilter:
         self.previous_right_wheel, self.previous_left_wheel = self._read_wheel_joints()
         self.current_right_wheel = self.previous_right_wheel 
         self.current_left_wheel = self.previous_left_wheel
+
+        # load map lines
+        self.map_lines = np.load(map_lines_file_path)
+
+        self.validation_gate = 5.99 # corresponding to the 95-th percentile of a chi^2 distribution with 2 d.o.f
 
     def _initialize_state(self, state: Odometry, initial_pose: Pose):
         """
@@ -88,6 +101,12 @@ class KalmanFilter:
         """
         joint_state_msg = rospy.wait_for_message("/joint_states", JointState)
         return joint_state_msg.position[0], joint_state_msg.position[1] 
+
+    def _get_predicted_state_covariance(self):
+        # get the covariance of estimated pose
+        slice_row_indices = np.array([0, 1, 5])
+        slice_colums_indices = np.array([0, 1, 5])
+        return np.reshape(self.predicted_state.pose.covariance, [6,6])[slice_row_indices,:][:, slice_colums_indices]
 
     def prediction(self):
         """Perform the preditction step of the Kalman filter
@@ -157,11 +176,139 @@ class KalmanFilter:
         current_covariance = np.add(covariance_motion, covariance_command)        
         self.predicted_state.pose.covariance = list(np.array(current_covariance).flatten())
             
-    def measure():
-        # get current fitted lines
-        pass
+    def _measurement_prediction(self)->Tuple[List, List]:
+        """Compute the expected measures
+        Parameters
+        ----------
+            
+        Returns
+        -------
+        """
+        # for j-th , compute the expected line measurement
+        # z_hat_{j} = h_{j}(x_hat_t, m_{k})
+        z_hat = []
+        # for each predicted measure compute the jacobian
+        predicted_measures_jacobians = []
+        # Robot orientation and position estimated through odometry
+        _, _, theta_hat = tf.transformations.euler_from_quaternion(quaternion=[self.predicted_state.pose.pose.orientation.x,
+                                                                          self.predicted_state.pose.pose.orientation.y,
+                                                                          self.predicted_state.pose.pose.orientation.z,
+                                                                          self.predicted_state.pose.pose.orientation.w])
+        x_hat = self.predicted_state.pose.pose.position.x
+        y_hat = self.predicted_state.pose.pose.position.y
 
-    def update(self):
+        for line in self.map_lines:
+            # rho_hat = rho - (x_hat*cos(alpha) + y_hat*sinc(alpha))
+            rho_hat = line[0] - (x_hat*math.cos(line[1]) + y_hat*math.sin(line[1]))
+            if rho_hat > LIDAR_MAX_RANGE:
+                continue
+            else:
+                # alpha_hat = alpha - theta_hat 
+                alpha_hat = line[1] - theta_hat
+                z_hat.append([rho_hat, alpha_hat])
+                predicted_measures_jacobians.append([[0, 0, -1], [-math.cos(line[1]), -math.sin(line[1]), 0]])
+                
+        
+        rospy.logdebug(f"Number of expected lines {len(z_hat)}")
+        rospy.logdebug(f"Expected Lines {z_hat}")
+        return z_hat, predicted_measures_jacobians
+    
+    def _matching(self, z_hat: List, predicted_measures_jacobian_list: List, line_segments: List) -> Tuple[np.array, np.array, np.array]:
+        """Compute the matching between predicted measure and current measure
+        Parameters
+        ----------
+            z_hat: List
+                List of predicted measure
+            predicted_measures_jacobian_list: List
+                List of predicted measures jacobian    
+            line_segments: List
+                List of measured segmentation
+        Returns
+
+        -------
+        """ 
+        
+        # get the covariance of estimated pose
+        predicted_state_covariance = self._get_predicted_state_covariance()
+        
+        # Tensors containing the complete matrices
+        # Complete innovation array
+        complete_innovation = None
+        # measured line covariance block diagonal
+        measured_line_covariance_block_diagonal = None
+        # complete predicted line jacobians
+        complete_predicted_line_jacobians = None
+
+        match_cnt = 0
+        for line_segment_msg in line_segments:
+            # get the measured line
+            # [angle
+            #  radius]
+            measured_line = np.array([[line_segment_msg.angle], [line_segment_msg.radius]])
+            measured_line_covariance = np.reshape(line_segment_msg.covariance, [2,2])
+            rospy.logdebug(f"Measured lines {measured_line}")
+            for indx, predicted_measure in enumerate(z_hat):
+                # [angle
+                #  radius]
+                predicted_line = np.array([[predicted_measure[1]], [predicted_measure[0]]])
+                predicted_line_jacobian = np.array(predicted_measures_jacobian_list[indx])
+                # 1. Compute the innovation measure with relative covariance
+                # compute the innovation: 2x1
+                innovation = np.subtract(measured_line, predicted_line)
+                # compute the innovation covariance
+                # H_{j} * P_hat_t * H_{j}^T + R_{i}: 2x2
+                innovation_covariance = np.add(np.matmul(np.matmul(predicted_line_jacobian, predicted_state_covariance), 
+                                                                   predicted_line_jacobian.transpose()), 
+                                               measured_line_covariance)
+                
+                # 2. Compute the mahalanobis distance
+                # compute the mahalanobis distance
+                # innovation^T * innovation_covariance^-1 * innovation
+                mahalanobis_distance = np.matmul(np.matmul(innovation.transpose(), np.linalg.inv(innovation_covariance)), 
+                                                          innovation)
+                
+                # check if the sample belongs to the validation gate
+                if mahalanobis_distance < self.validation_gate:
+                    match_cnt += 1
+                    if complete_innovation is None:
+                        complete_innovation = innovation
+                    else:
+                        complete_innovation = np.vstack((complete_innovation, innovation))
+                    
+                    if measured_line_covariance_block_diagonal is None:
+                        measured_line_covariance_block_diagonal = measured_line_covariance
+                    else:
+                        measured_line_covariance_block_diagonal = np.block([[measured_line_covariance_block_diagonal, np.zeros((2*(match_cnt-1),2))],
+                                                                            [np.zeros((2,2*(match_cnt-1))), measured_line_covariance]])
+
+                    if complete_predicted_line_jacobians is None:
+                        complete_predicted_line_jacobians = predicted_line_jacobian
+                    else:
+                        complete_predicted_line_jacobians = np.vstack((complete_predicted_line_jacobians, predicted_line_jacobian))
+        
+        return complete_innovation, measured_line_covariance_block_diagonal, complete_predicted_line_jacobians
+
+
+    def measure(self) -> Tuple[np.array, np.array, np.array]:
+        """Perform the measurement step of the Kalman filter
+        Parameters
+        ----------
+
+        Returns
+        -------
+        """
+        # 1. Get the measurement prediction
+        z_hat_list, predicted_measures_jacobian_list = self._measurement_prediction()
+        # 2. Get the lines interpolated through the Lidar
+        line_segments_msg = rospy.wait_for_message("/line_segments", LineSegmentList)
+        line_segmnets_list = line_segments_msg.line_segments
+        # 3. Compute the matching
+        complete_innovation, measured_line_covariance_block_diagonal, complete_predicted_line_jacobians = self._matching(z_hat_list, predicted_measures_jacobian_list, line_segmnets_list)
+        rospy.logdebug(f"\nComplete innovation size: {np.shape(complete_innovation)}\n-\nMeasured line covariance block diagonal Size: {np.shape(measured_line_covariance_block_diagonal)}\n-\nComplete Predicted Line Jacobians: {np.shape(complete_predicted_line_jacobians)}")
+
+        return complete_innovation, measured_line_covariance_block_diagonal, complete_predicted_line_jacobians
+    
+    def update(self, complete_innovation=np.array, measured_line_covariance_block_diagonal=np.array, complete_predicted_line_jacobians=np.array):
         """Perform the update step of the Kalman filter
         Parameters
         ----------
@@ -169,20 +316,35 @@ class KalmanFilter:
         Returns
         -------
         """
+        # 1. Compute Kalman Gain
+        # P_hat * Complete_jacobian^T * Complete_Innovation_Covariance^-1
+        # get the predicted state covariance
+        predicted_state_covariance = self._get_predicted_state_covariance()
+        complete_innovation_covariance = np.add(np.matmul(np.matmul(complete_predicted_line_jacobians, predicted_state_covariance), 
+                                                                   complete_predicted_line_jacobians.transpose()), 
+                                                measured_line_covariance_block_diagonal)
+        kalman_gain = np.matmul(np.matmul(predicted_state_covariance, complete_predicted_line_jacobians.transpose()),
+                                np.linalg.inv(complete_innovation_covariance))
+        rospy.loginfo(f"Kalman Gain shape {np.shape(kalman_gain)}")
+        
+        # 2. Compute update position
+
+        # 3. Compute update covariance matrix
+
         self.updated_state = copy.deepcopy(self.predicted_state)
         
 if __name__ == '__main__':
     rospy.init_node("ekf_test")
     rate = rospy.Rate(30)
     initial_pose = Pose()
-    initial_pose.position.x = -2.0
-    initial_pose.position.y = -0.5
+    initial_pose.position.x = -24.0
+    initial_pose.position.y = -9.5
     initial_pose.position.z = .0
     initial_pose.orientation.x = .0
     initial_pose.orientation.y = .0
     initial_pose.orientation.z = .0
     initial_pose.orientation.w = 1
-    ekf = KalmanFilter(initial_pose=initial_pose)
+    ekf = KalmanFilter(initial_pose=initial_pose, map_lines_file_path=map_lines_file_path)
     
     i = 0
     while not rospy.is_shutdown():
@@ -190,6 +352,7 @@ if __name__ == '__main__':
         if (i%30 == 0):
             rospy.loginfo(f"Predicted Position\n {ekf.predicted_state.pose.pose.position}")
             rospy.loginfo(f"Predicted Orientation\n {ekf.predicted_state.pose.pose.orientation}")
-        ekf.update()
+        complete_innovation, measured_line_covariance_block_diagonal, complete_predicted_line_jacobians = ekf.measure()
+        ekf.update(complete_innovation, measured_line_covariance_block_diagonal, complete_predicted_line_jacobians)
         rate.sleep()
         i += 1    

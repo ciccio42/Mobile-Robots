@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   actionlib
   move_base
+  laser_line_extraction
 )
 
 ## System dependencies are found with CMake's conventions
