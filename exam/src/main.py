@@ -5,15 +5,15 @@ import rospy, rospkg
 from visualization_msgs.msg import MarkerArray
 import actionlib
 from actionlib_msgs.msg import GoalStatus
-from geometry_msgs.msg import PoseWithCovarianceStamped, Twist, PoseArray
-from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import PoseWithCovarianceStamped, Twist, PoseArray, PointStamped, Pose
+from sensor_msgs.msg import Imu,LaserScan
 from move_base_msgs.msg import MoveBaseAction
 from gazebo_msgs.msg import ModelState
 
 import numpy as np 
 from datetime import datetime
 import os
-
+import tf
 
 # get the path to the current package
 rospack = rospkg.RosPack()
@@ -21,7 +21,8 @@ pkg_path = rospack.get_path('exam')
 utils_lib_path = os.path.join(pkg_path, "scripts")
 sys.path.append(utils_lib_path)
 import utils
-
+from utils import V_MAX, OMEGA_MAX, TIME, USER_INPUT_VALID, REACHED_WP, ALIGNMENT_COMPLETE, \
+                  ALIGNMENT_COMPLETE, MEAN_ORIENTATION_IMU, STD_DEV_ORIENTATION_IMU
 import argparse
  
 parser = argparse.ArgumentParser(description="Navigation Node parameters",
@@ -35,15 +36,18 @@ initialization_error_mean = 0.0
 # STD DEV initialization error
 initialization_error_std_dev_x = 30 # m
 initialization_error_std_dev_y = 20 # m
-initialization_error_theta = 0.0 # rad
+initialization_error_std_dev_yow = math.pi/4# rad
 
 # Covariance threshold for initial localization
 COVARIANCE_X_THRESHOLD = 1 # m
 COVARIANCE_Y_THRESHOLD = 1 # m
-TIME_LIMIT_FOR_INITIAL_LOCALIZATION = 2*math.pi # The time required to complete one rotation around the z-axis
+COVARIANCE_YAW_THRESHOLD = 0.1 # rad
+TIME_LIMIT_FOR_INITIAL_LOCALIZATION = (2*math.pi)*2 # The time required to complete one rotation around the z-axis
 
 # waypoints file path
 path_file_path = os.path.join(pkg_path, f"config/path_")
+cmd_vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
+
 
 def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time):
     goal = utils.create_goal_msg(wp)
@@ -65,30 +69,40 @@ def initialize_pose(initial_pose: PoseWithCovarianceStamped) -> PoseWithCovarian
     # however the related variance is high, since there is a huge uncertainty at the beginning
     initial_pose.pose.covariance[0] = initialization_error_std_dev_x
     initial_pose.pose.covariance[7] = initialization_error_std_dev_y
+    initial_pose.pose.covariance[35] = initialization_error_std_dev_yow
     return initial_pose
-    
+
+def alignment_elapsed(event=None):
+    # stop the robot
+    cmd_vel = Twist()
+    cmd_vel.linear.x = 0.0
+    cmd_vel.linear.y = 0.0
+    cmd_vel.linear.z = 0.0
+    cmd_vel.angular.x = 0.0
+    cmd_vel.angular.y = 0.0
+    cmd_vel.angular.z = 0.0
+    cmd_vel_pub.publish(cmd_vel)
+    global ALIGNMENT_COMPLETE
+    ALIGNMENT_COMPLETE = True
+
 def automatic_initialization_procedure():
-    
-    def move_towards_empty_space():        
-        pass
     
     """Perform the initial localization
     """
-    
+    rate = rospy.Rate(10)
     # Start by rotating
     rate = rospy.Rate(10)
     cmd_vel_msg = Twist()
     cmd_vel_msg.angular.z = 1.0 # rad/s
-    # cmd_vel publisher
-    cmd_vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
     start_time = rospy.Time.now()
-    rospy.loginfo("Start localization procedure")
+    rospy.loginfo("Start localization rotation procedure")
     time_elapsed = False
     
     # count number of particles
     particle_cloud = rospy.wait_for_message("/particlecloud", PoseArray)
     rospy.loginfo(f"Number of particles {len(particle_cloud.poses)}")
-    
+    localization = False
+
     while True:
         rate.sleep()
         current_time = rospy.Time.now()
@@ -97,34 +111,77 @@ def automatic_initialization_procedure():
         try:
             # get the last estimated pose
             estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
+            # rospy.loginfo (f"Estimated pose: {estimated_pose}")
             covariance_x = estimated_pose.pose.covariance[0]
             covariance_y = estimated_pose.pose.covariance[7]
+            covariance_yow = estimated_pose.pose.covariance[35]
             cmd_vel_pub.publish(cmd_vel_msg)
-            if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and elapsed_time >= TIME_LIMIT_FOR_INITIAL_LOCALIZATION:
+            cmd_vel_pub.publish(cmd_vel_msg)
+            if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD  and elapsed_time >= TIME_LIMIT_FOR_INITIAL_LOCALIZATION:
                 cmd_vel_msg.angular.z = 0
                 cmd_vel_pub.publish(cmd_vel_msg)
-                return True
+                break
+            
+        
         except:
             rospy.loginfo("AMCL Pose not updated")
-        
-        if elapsed_time >= TIME_LIMIT_FOR_INITIAL_LOCALIZATION:
-            cmd_vel_msg.angular.z = 0
-            cmd_vel_pub.publish(cmd_vel_msg)
-            time_elapsed = True
-            break
-    
-    if time_elapsed == True:
-        # check the axis with the highest variance
-        estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
-        covariance_x = estimated_pose.pose.covariance[0]
-        covariance_y = estimated_pose.pose.covariance[7]
-        rospy.loginfo(f"Covariance along x-axis {covariance_x}, y-axis {covariance_y}")
-        if covariance_x > covariance_y:
-            rospy.loginfo("Move along the x-axis to gain information")
-            # get measures
-            laser_scan = rospy.wait_for_message("", LaserScan)
-        else:
-            pass
+
+    estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
+    rospy.loginfo (f"Estimated pose: {estimated_pose}")
+    covariance_x = estimated_pose.pose.covariance[0]
+    covariance_y = estimated_pose.pose.covariance[7]
+    covariance_yow = estimated_pose.pose.covariance[35]
+    if covariance_yow < COVARIANCE_YAW_THRESHOLD:
+        localization = True
+        return True
+    else:
+        localization = False
+        rospy.loginfo("Localization not completed")
+
+
+
+    if localization == False:
+        input("Press any key to start to move into open space")
+        while True:
+            laser_values = utils.get_laser_scan("/scan").ranges
+
+            # take the maximum value and the degree
+            max_measure = max(laser_values)
+            degree = laser_values.index(max_measure)
+            rospy.loginfo (f"max: {max_measure}, degree: {degree}")
+            input("press")
+            # rotate to max measure 
+            omega = math.radians(degree)/ TIME
+            cmd_vel = Twist()
+            cmd_vel.linear.x = 0.0
+            cmd_vel.linear.y = 0.0
+            cmd_vel.linear.z = 0.0
+            cmd_vel.angular.x = 0.0
+            cmd_vel.angular.y = 0.0
+            cmd_vel.angular.z = omega
+            cmd_vel_pub.publish(cmd_vel)
+            rospy.Timer(rospy.Duration(secs=TIME),alignment_elapsed, oneshot=True)
+
+            if max_measure == math.inf:
+                max_measure = 3.15
+            # move to maximum_value/2
+            utils.trapezoidal_motion(cmd_vel_pub, (max_measure/2))
+
+            # check covariance information 
+            try:
+                # get the last estimated pose
+                estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
+                covariance_x = estimated_pose.pose.covariance[0]
+                covariance_y = estimated_pose.pose.covariance[7]
+                covariance_yow = estimated_pose.pose.covariance[35]
+                cmd_vel_pub.publish(cmd_vel_msg)
+                if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
+                    cmd_vel_msg.angular.z = 0
+                    cmd_vel_pub.publish(cmd_vel_msg)
+                    input ("Localization completed, press any key to reach next waypoint")
+                    return True
+            except:
+                rospy.loginfo("AMCL Pose not updated")
 
 if __name__ == '__main__':
 
@@ -169,6 +226,7 @@ if __name__ == '__main__':
     rospy.loginfo(f"Initial Pose {initial_pose}")
     if args.run_automatic_initialization_procedure == "True":
         initial_pose = initialize_pose(initial_pose)
+
     rospy.loginfo(f"Initial Pose {initial_pose}")
     initial_pose_pub.publish(initial_pose)
     rospy.loginfo(f"Waypoints: {waypoints}")
