@@ -2,7 +2,10 @@
     <!--Args-->
     <arg name="x_pos" default="-24.0"/>
     <arg name="y_pos" default="-9.5"/>
-    <arg name="yaw_orientation" default="0"/>
+    <arg name="yaw_orientation" default="0.0"/>
+    <arg name="odom_topic" default="odom_ekf"/>
+    <arg name="num_path" default="1" />
+    <arg name="run_aip" default="False" />
     
     <!--Parameters-->
     <param name="kalman" type="bool" value="False"/>
@@ -12,13 +15,14 @@
       <arg name="x_pos" default="$(arg x_pos)"/>
       <arg name="y_pos" default="$(arg y_pos)"/>
       <arg name="z_pos" default="0.0"/>
-      <arg name="yaw_orientation" default="$(yaw_orientation)"/>
+      <arg name="yaw" default="$(arg yaw_orientation)"/>
       <arg name="gui" default="false"/>
     </include>
 
     <!--run rviz-->
     <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
       <arg name="map_file" value="$(find exam)/maps/map6.yaml" />
+      <arg name="odometry_topic" value="$(arg odom_topic)" />
       <!--arg name="initial_pose_x" default="$(arg x_pos)"/>
       <arg name="initial_pose_y" default="$(arg y_pos)"/>
       <arg name="initial_pose_a" default="$(arg yaw_orientation)"/-->
@@ -34,15 +38,16 @@
     <param name="~least_sq_angle_thresh" value="0.0001" />
     <param name="~least_sq_radius_thresh" value="0.0001" />
     <param name="~max_line_gap" value="0.5" />
-    <param name="~min_line_length" value="0.7" />
+    <param name="~min_line_length" value="0.3" />
     <param name="~min_range" value="0.5" />
     <param name="~max_range" value="250.0" />
     <param name="~min_split_dist" value="0.04" />
     <param name="~outlier_dist" value="0.06" />
-    <param name="~min_line_points" value="10" />
+    <param name="~min_line_points" value="3" />
   </node>
 
     <!-- run application node -->
-    <!--node name="navigation_node" pkg="exam" type="main.py" output="screen" /-->
+    <node name="navigation_node" pkg="exam" type="main.py" args="-num_path $(arg num_path) -run_aip $(arg run_aip)" output="screen">
+    </node>
 
 </launch>

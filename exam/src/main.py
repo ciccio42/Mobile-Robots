@@ -28,7 +28,7 @@ parser = argparse.ArgumentParser(description="Navigation Node parameters",
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("-num_path", "--path-file-number", default="1", help="Number of path file")
 parser.add_argument("-run_aip", "--run-automatic-initialization-procedure", default="False", help="Whether run the automatic initialization procedure or not")
-args = parser.parse_args()
+args, unknown = parser.parse_known_args()
 
 # Mean initialization error
 initialization_error_mean = 0.0
@@ -189,6 +189,7 @@ if __name__ == '__main__':
         rospy.loginfo(f"Waypoint number {i}\n{wp}")
         log_file.write(f"\n\nWaypoint number: {i}\n{wp}")
         curr_time = go_to_next_wp(wp=wp, move_base_client=move_base_client, time = curr_time)
+        input("Press any key to continue:")
         rate.sleep()
         
     minutes, sec = divmod(int(curr_time) - start_time, 60)
