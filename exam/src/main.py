@@ -2,6 +2,7 @@ import math
 import os, sys
 from threading import currentThread
 import rospy, rospkg
+from std_srvs.srv import Empty
 from visualization_msgs.msg import MarkerArray
 import actionlib
 from actionlib_msgs.msg import GoalStatus
@@ -90,23 +91,27 @@ def timer_elapsed(event=None):
     TIME_ELAPSED = True
 
 
-def rotation_procedure(cmd_vel_msg, open_space):
+def rotation_procedure(open_space):
+    cmd_vel_msg = Twist()
+    cmd_vel_msg.angular.z = 1.0 # rad/s
     start_time = rospy.Time.now()
+    rate = rospy.Rate(10)
     rospy.loginfo("Start localization rotation procedure")
     while True:
         rate.sleep()
         current_time = rospy.Time.now()
         elapsed_time = (current_time.secs + (current_time.nsecs * 10**-9)) - (start_time.secs + (start_time.nsecs * 10**-9))
         rospy.loginfo(f"Localization phase - Elapsed time {elapsed_time}")
+        cmd_vel_pub.publish(cmd_vel_msg)
         try:
             # get the last estimated pose
+            amcl_update_client()
             estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
             # rospy.loginfo (f"Estimated pose: {estimated_pose}")
             covariance_x = estimated_pose.pose.covariance[0]
             covariance_y = estimated_pose.pose.covariance[7]
             covariance_yow = estimated_pose.pose.covariance[35]
-            cmd_vel_pub.publish(cmd_vel_msg)
-            cmd_vel_pub.publish(cmd_vel_msg)
+            
             if ((covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD) and open_space == False)  or elapsed_time >= TIME_LIMIT_FOR_INITIAL_LOCALIZATION:
                 if (covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD):
                     rospy.loginfo("Covariance under threshold")
@@ -116,28 +121,24 @@ def rotation_procedure(cmd_vel_msg, open_space):
                 cmd_vel_pub.publish(cmd_vel_msg)
                 break
         except:
-            rospy.loginfo("AMCL Pose not updated")
+            rospy.loginfo("2.AMCL Pose not updated")
 
 
 def automatic_initialization_procedure():
     
     """Perform the initial localization
     """
-    rate = rospy.Rate(10)
+    
     # Start by rotating
-    rate = rospy.Rate(10)
-    cmd_vel_msg = Twist()
-    cmd_vel_msg.angular.z = 1.0 # rad/s
     time_elapsed = False
-
     
     # count number of particles
     particle_cloud = rospy.wait_for_message("/particlecloud", PoseArray)
     rospy.loginfo(f"Number of particles {len(particle_cloud.poses)}")
     localization = False
 
-    rotation_procedure(cmd_vel_msg, False)
-
+    rotation_procedure(False)
+    amcl_update_client()
     estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
     rospy.loginfo (f"Estimated pose: {estimated_pose}")
     covariance_x = estimated_pose.pose.covariance[0]
@@ -149,7 +150,6 @@ def automatic_initialization_procedure():
     else:
         localization = False
         rospy.loginfo("Localization not completed")
-
 
 
     if localization == False:
@@ -197,10 +197,12 @@ def automatic_initialization_procedure():
                 min_measure = 3.15
             # move to maximum_value/2
             utils.trapezoidal_motion(cmd_vel_pub, (min_measure/2))
-
+            rotation_procedure(True)
             # check covariance information 
             try:
                 # get the last estimated pose
+                amcl_update_client()
+                rate.sleep()
                 estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
                 covariance_x = estimated_pose.pose.covariance[0]
                 covariance_y = estimated_pose.pose.covariance[7]
@@ -211,15 +213,9 @@ def automatic_initialization_procedure():
                     cmd_vel_pub.publish(cmd_vel_msg)
                     input ("Localization completed, press any key to reach next waypoint")
                     return True
-                else: 
-                    rotation_procedure(cmd_vel_msg, True)
-                    if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
-                        cmd_vel_msg.angular.z = 0
-                        cmd_vel_pub.publish(cmd_vel_msg)
-                        input ("Localization completed, press any key to reach next waypoint")
-                        return True
+                
             except:
-                rospy.loginfo("AMCL Pose not updated")
+                rospy.loginfo("1. AMCL Pose not updated")
 
 def align_with_source_wp(theta):
     # reach wp orientation
@@ -274,6 +270,14 @@ if __name__ == '__main__':
 
     # create a move_base client
     move_base_client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
+
+
+    # create a amcl update client 
+    rospy.wait_for_service("request_nomotion_update")
+    amcl_update_client = rospy.ServiceProxy("request_nomotion_update", Empty)
+
+
+
     # Waits until the action server has started up and started
     # listening for goals.
     rospy.loginfo("Waiting for action server....")
