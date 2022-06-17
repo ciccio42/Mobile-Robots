@@ -1,10 +1,10 @@
 <launch>
     <!--Args-->
-    <arg name="x_pos" default="-24.0"/>
+    <arg name="x_pos" default="-23.80"/>
     <arg name="y_pos" default="-9.5"/>
     <arg name="yaw_orientation" default="0.0"/>
     <arg name="odom_topic" default="odom_ekf"/>
-    <arg name="num_path" default="1" />
+    <arg name="num_path" default="3" />
     <arg name="run_aip" default="True" />
     
     <!--Parameters-->
@@ -16,7 +16,7 @@
       <arg name="y_pos" default="$(arg y_pos)"/>
       <arg name="z_pos" default="0.0"/>
       <arg name="yaw" default="$(arg yaw_orientation)"/>
-      <arg name="gui" default="true"/>
+      <arg name="gui" default="false"/>
     </include>
 
     <!--run rviz-->
