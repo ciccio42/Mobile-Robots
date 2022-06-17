@@ -48,8 +48,8 @@ TIME_LIMIT_FOR_INITIAL_LOCALIZATION = (2*math.pi)*2 # The time required to compl
 path_file_path = os.path.join(pkg_path, f"config/path_")
 cmd_vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
 
-ERROR_X = 0.10
-ERROR_Y = 0.10
+ERROR_X = 0.20
+ERROR_Y = 0.20
 
 def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time):
     goal = utils.create_goal_msg(wp)
@@ -164,7 +164,10 @@ def automatic_initialization_procedure():
             cmd_vel.angular.z = omega
             cmd_vel_pub.publish(cmd_vel)
             rospy.Timer(rospy.Duration(secs=TIME),alignment_elapsed, oneshot=True)
-
+            global ALIGNMENT_COMPLETE
+            ALIGNMENT_COMPLETE = False
+            while not ALIGNMENT_COMPLETE:
+                pass
             # take a neighbourhood [-10 10] degrees of the maximum point
             N_NEIGHBOURS = 10
             start_indx = (degree - N_NEIGHBOURS)%359
@@ -200,6 +203,33 @@ def automatic_initialization_procedure():
                     return True
             except:
                 rospy.loginfo("AMCL Pose not updated")
+
+def align_with_source_wp(theta):
+    # reach wp orientation
+    estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
+    _,_, y = tf.transformations.euler_from_quaternion([estimated_pose.pose.pose.orientation.x, 
+                                                       estimated_pose.pose.pose.orientation.y, 
+                                                       estimated_pose.pose.pose.orientation.z, 
+                                                       estimated_pose.pose.pose.orientation.w])
+
+    delta_theta = (theta-y)
+    rospy.loginfo("\nAlignment with source waypoint orientation: theta {}".format(delta_theta))
+    omega = theta / TIME
+    cmd_vel = Twist()
+    cmd_vel.linear.x = 0.0
+    cmd_vel.linear.y = 0.0
+    cmd_vel.linear.z = 0.0
+    cmd_vel.angular.x = 0.0
+    cmd_vel.angular.y = 0.0
+    cmd_vel.angular.z = omega
+    cmd_vel_pub.publish(cmd_vel)
+
+    rospy.Timer(rospy.Duration(secs=TIME),alignment_elapsed, oneshot=True)
+    global ALIGNMENT_COMPLETE
+    ALIGNMENT_COMPLETE = False
+    while not ALIGNMENT_COMPLETE:
+        pass
+    rospy.loginfo ("Alignment Completed")
 
 if __name__ == '__main__':
 
@@ -255,18 +285,19 @@ if __name__ == '__main__':
         automatic_initialization_procedure()
 
         # check if the robot have reached the first wp
-        '''estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
-        
+        estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
+        rospy.loginfo (f"Estimated Pose: {estimated_pose}")
         wp_x = waypoints[0][0]
         wp_y = waypoints[0][1]
 
         diff_x = abs(wp_x - estimated_pose.pose.pose.position.x)
         diff_y = abs(wp_y - estimated_pose.pose.pose.position.y)
         if diff_x < ERROR_X and diff_y < ERROR_Y:
-            rospy.loginfo(f"Waypoint reached")
+            rospy.loginfo(f"Source reached")
+            align_with_source_wp(waypoints[0][2])
         else:
-            _ = go_to_next_wp(wp=waypoints[0], move_base_client=move_base_client, time = 0)'''
-        _ = go_to_next_wp(wp=waypoints[0], move_base_client=move_base_client, time = 0)
+            _ = go_to_next_wp(wp=waypoints[0], move_base_client=move_base_client, time = 0)
+        #_ = go_to_next_wp(wp=waypoints[0], move_base_client=move_base_client, time = 0)
 
     #rate.sleep()
     
