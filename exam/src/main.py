@@ -91,6 +91,15 @@ def timer_elapsed(event=None):
     TIME_ELAPSED = True
 
 
+def get_amcl_pose():
+    amcl_update_client()
+    while True:
+        try:
+            estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
+            return estimated_pose
+        except:
+            rospy.loginfo("AMCL Pose not updated")
+
 def rotation_procedure(open_space):
     cmd_vel_msg = Twist()
     cmd_vel_msg.angular.z = 1.0 # rad/s
@@ -103,25 +112,19 @@ def rotation_procedure(open_space):
         elapsed_time = (current_time.secs + (current_time.nsecs * 10**-9)) - (start_time.secs + (start_time.nsecs * 10**-9))
         rospy.loginfo(f"Localization phase - Elapsed time {elapsed_time}")
         cmd_vel_pub.publish(cmd_vel_msg)
-        try:
-            # get the last estimated pose
-            amcl_update_client()
-            estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
-            # rospy.loginfo (f"Estimated pose: {estimated_pose}")
-            covariance_x = estimated_pose.pose.covariance[0]
-            covariance_y = estimated_pose.pose.covariance[7]
-            covariance_yow = estimated_pose.pose.covariance[35]
+        estimated_pose = get_amcl_pose()
+        covariance_x = estimated_pose.pose.covariance[0]
+        covariance_y = estimated_pose.pose.covariance[7]
+        covariance_yow = estimated_pose.pose.covariance[35]
             
-            if ((covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD) and open_space == False)  or elapsed_time >= TIME_LIMIT_FOR_INITIAL_LOCALIZATION:
-                if (covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD):
-                    rospy.loginfo("Covariance under threshold")
-                else:
-                    rospy.loginfo("Rotating Time elapsed")
-                cmd_vel_msg.angular.z = 0
-                cmd_vel_pub.publish(cmd_vel_msg)
-                break
-        except:
-            rospy.loginfo("2.AMCL Pose not updated")
+        if ((covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD) and open_space == False)  or elapsed_time >= TIME_LIMIT_FOR_INITIAL_LOCALIZATION:
+            if (covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD):
+                rospy.loginfo("Covariance under threshold")
+            else:
+                rospy.loginfo("Rotating Time elapsed")
+            cmd_vel_msg.angular.z = 0
+            cmd_vel_pub.publish(cmd_vel_msg)
+            break
 
 
 def automatic_initialization_procedure():
@@ -138,12 +141,14 @@ def automatic_initialization_procedure():
     localization = False
 
     rotation_procedure(False)
-    amcl_update_client()
-    estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
+
+    estimated_pose = get_amcl_pose()
+
     rospy.loginfo (f"Estimated pose: {estimated_pose}")
     covariance_x = estimated_pose.pose.covariance[0]
     covariance_y = estimated_pose.pose.covariance[7]
     covariance_yow = estimated_pose.pose.covariance[35]
+
     if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
         localization = True
         return True
@@ -195,28 +200,20 @@ def automatic_initialization_procedure():
             input("press2")
             if min_measure == math.inf:
                 min_measure = 3.15
+
             # move to maximum_value/2
             utils.trapezoidal_motion(cmd_vel_pub, (min_measure/2))
             rotation_procedure(True)
-            # check covariance information 
-            try:
-                # get the last estimated pose
-                amcl_update_client()
-                rate.sleep()
-                estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
-                covariance_x = estimated_pose.pose.covariance[0]
-                covariance_y = estimated_pose.pose.covariance[7]
-                covariance_yow = estimated_pose.pose.covariance[35]
-                cmd_vel_pub.publish(cmd_vel_msg)
-                if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
-                    cmd_vel_msg.angular.z = 0
-                    cmd_vel_pub.publish(cmd_vel_msg)
-                    input ("Localization completed, press any key to reach next waypoint")
-                    return True
-                
-            except:
-                rospy.loginfo("1. AMCL Pose not updated")
 
+            # check covariance information 
+            estimated_pose = get_amcl_pose()
+            covariance_x = estimated_pose.pose.covariance[0]
+            covariance_y = estimated_pose.pose.covariance[7]
+            covariance_yow = estimated_pose.pose.covariance[35]
+            if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
+                input ("Localization completed, press any key to reach next waypoint")
+                return True
+                
 def align_with_source_wp(theta):
     # reach wp orientation
     estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
