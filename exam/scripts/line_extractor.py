@@ -11,7 +11,7 @@ plot = True
 dir_path = os.path.dirname(os.path.abspath(__file__))
 conf_dir_path = os.path.join(dir_path, "../config")
 map_dir_path = os.path.join(dir_path, "../maps")
-rho_thrs = 15e-2 # 15 cm
+rho_thrs = 5e-2 # 5 cm
 alpha_thrs = 10e-2 # 0.1
 
 def convert_cartesian_to_polar(p1, p2):
@@ -56,16 +56,22 @@ def filter_lines(polar_coordinates: np.array):
     filtered_lines = []
     print("Filtering lines.....")
     similar_flag_indx = []
+    lines_to_average = []
     for indx, line in enumerate(polar_coordinates):
+        similar_lines_for_current_line = []
+        if indx != 0:
+            remove_indices = np.array(similar_flag_indx).flat
+            remaining_lines = np.delete(polar_coordinates, remove_indices, 0)
+        
         for remaining_line in polar_coordinates[indx+1:, :]:
             # chech over rho and alpha
             if (abs(line[0]-remaining_line[0]) <= rho_thrs) and (abs(line[1]-remaining_line[1]) <= alpha_thrs):
                 print(f"Similar lines\n{line}-{remaining_line}\n")
                 similar_flag_indx.append(indx)
                 break
+    
     print(len(similar_flag_indx))
     return np.delete(polar_coordinates, similar_flag_indx, 0)
-
 
 def main(default_file = None):
     

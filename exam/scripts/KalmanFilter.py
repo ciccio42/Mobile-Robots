@@ -24,7 +24,7 @@ STD_DEV = 0.2 # m
 CLIP_ON_VARIATION_MOTION_MODEL = 0.4 # correspond to the 95-th percentile
 K_l = 0.001
 K_r = 0.001
-validation_gate = 9.57 # corresponding to the 95-th percentile of a chi^2 distribution with 2 d.o.f
+validation_gate = 3.219 # corresponding to the 90-th percentile of a chi^2 distribution with 2 d.o.f
 # Robot parameters
 WHEEL_DISTANCE = 0.287 # m
 WHEEL_RADIUS = 0.033 # m
@@ -170,16 +170,24 @@ class KalmanFilter:
         theta_hat = self._get_yaw_angle_predicted_state()
         # get the position wrt world frame
         p_world = self._get_position_wrt_world_frame()
-
+        rospy.logdebug(f"Position wrt world frame {p_world}")
         for indx, line in enumerate(self.map_lines):
-            # rho_hat = rho - (x_hat*cos(alpha) + y_hat*sin(alpha))
-            rho_hat = line[0] - (p_world[0][0]*math.cos(line[1]) + p_world[1][0]*math.sin(line[1]))
-            # alpha_hat = alpha - theta_hat 
-            alpha_hat = line[1] - theta_hat
-            z_hat.append([rho_hat, alpha_hat])
-            predicted_measures_jacobians.append([[0, 0, -1], [-math.cos(line[1]), -math.sin(line[1]), 0]])
-
-            if indx == 16:
+            if (p_world[0][0]*math.cos(line[1]) + p_world[1][0]*math.sin(line[1])) <=  line[0]:
+                # rho_hat = rho - (x_hat*cos(alpha) + y_hat*sin(alpha))
+                rho_hat = line[0] - (p_world[0][0]*math.cos(line[1]) + p_world[1][0]*math.sin(line[1]))
+                # alpha_hat = alpha - theta_hat 
+                alpha_hat = line[1] - theta_hat
+                z_hat.append([rho_hat, alpha_hat])
+                predicted_measures_jacobians.append([[0, 0, -1], [-math.cos(line[1]), -math.sin(line[1]), 0]])
+                rospy.logdebug(f"Line\n{line}")
+                rospy.logdebug(f"Expected line\n{[rho_hat, alpha_hat]}")
+            elif (p_world[0][0]*math.cos(line[1]) + p_world[1][0]*math.sin(line[1])) >  line[0]:
+                # rho_hat = rho - (x_hat*cos(alpha) + y_hat*sin(alpha))
+                rho_hat = - line[0] + (p_world[0][0]*math.cos(line[1]) + p_world[1][0]*math.sin(line[1]))
+                # alpha_hat = alpha - theta_hat 
+                alpha_hat = line[1] - theta_hat
+                z_hat.append([rho_hat, alpha_hat])
+                predicted_measures_jacobians.append([[0, 0, -1], [+math.cos(line[1]), +math.sin(line[1]), 0]])
                 rospy.logdebug(f"Line\n{line}")
                 rospy.logdebug(f"Expected line\n{[rho_hat, alpha_hat]}")
 
@@ -221,7 +229,6 @@ class KalmanFilter:
             #  radius]
             measured_line = np.array([[line_segment_msg.angle], [line_segment_msg.radius]])
             measured_line_covariance = np.reshape(line_segment_msg.covariance, [2,2])
-            rospy.logdebug(f"Measured lines {measured_line}")
             for indx_expected, predicted_measure in enumerate(z_hat):
                 # [angle
                 #  radius]
@@ -242,14 +249,18 @@ class KalmanFilter:
                 mahalanobis_distance = np.matmul(np.matmul(innovation.transpose(), np.linalg.inv(innovation_covariance)), 
                                                           innovation)
                 
-                if indx_expected == 16:
-                    rospy.logdebug(f"####\nMeasured Line {measured_line}\n")
-                    rospy.logdebug(f"\nPredicted Line {predicted_line}\n")
-                    rospy.logdebug(f"\nInnovation {innovation}\n")
-                    rospy.logdebug(f"\nMahalanobis distance {mahalanobis_distance}\n####")
+
 
                 # check if the sample belongs to the validation gate
                 if mahalanobis_distance < self.validation_gate:
+                    # get the position wrt world frame
+                    p_world = self._get_position_wrt_world_frame()
+                    rospy.loginfo(f"Position wrt world frame {p_world}")
+                    rospy.loginfo(f"####\nMeasured Line {measured_line}\n")
+                    rospy.loginfo(f"\nPredicted Line {predicted_line}\n")
+                    rospy.loginfo(f"\nInnovation {innovation}\n")
+                    rospy.loginfo(f"\nMahalanobis distance {mahalanobis_distance}\n####")
+                    
                     match_cnt += 1
                     if complete_innovation is None:
                         complete_innovation = innovation
@@ -393,6 +404,8 @@ class KalmanFilter:
                                                     measured_line_covariance_block_diagonal)
             kalman_gain = np.matmul(np.matmul(predicted_state_covariance, complete_predicted_line_jacobians.transpose()),
                                     np.linalg.inv(complete_innovation_covariance))
+            rospy.loginfo(f"Complete Innovation:\n{complete_innovation}")
+            rospy.loginfo(f"Kalman Gain:\n{kalman_gain}")
             # 2. Compute update state
             # get the orientation of the robot
             # world frame and map frame are aligned
@@ -406,6 +419,8 @@ class KalmanFilter:
                 rospy.logdebug(f"Inverse of innovation matrix {np.linalg.inv(complete_innovation_covariance)}")
                 rospy.logdebug(f"Kalman gain: {np.matmul(kalman_gain, complete_innovation)}")
             updated_state = np.add(predicted_state, np.matmul(kalman_gain, complete_innovation))
+            rospy.loginfo(f"Add element\n{np.matmul(kalman_gain, complete_innovation)}")
+            rospy.loginfo(f"Updated state:\n{updated_state}")
             # updated_covariance = P_hat - K*Innovation_covariance*K^T
             updated_state_covariance = np.subtract(predicted_state_covariance, 
                                                    np.matmul(np.matmul(kalman_gain, complete_innovation_covariance), kalman_gain.transpose()))
