@@ -34,9 +34,9 @@ args, unknown = parser.parse_known_args()
 # Mean initialization error
 initialization_error_mean = 0.0
 # STD DEV initialization error
-initialization_error_std_dev_x = 30 # m
-initialization_error_std_dev_y = 20 # m
-initialization_error_std_dev_yow = math.pi/4# rad
+initialization_error_std_dev_x = 15 # m
+initialization_error_std_dev_y = 10 # m
+initialization_error_std_dev_yow = math.pi/4 # rad
 
 # Covariance threshold for initial localization
 COVARIANCE_X_THRESHOLD = 1 # m
@@ -48,6 +48,8 @@ TIME_LIMIT_FOR_INITIAL_LOCALIZATION = (2*math.pi)*2 # The time required to compl
 path_file_path = os.path.join(pkg_path, f"config/path_")
 cmd_vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
 
+ERROR_X = 0.10
+ERROR_Y = 0.10
 
 def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time):
     goal = utils.create_goal_msg(wp)
@@ -152,6 +154,7 @@ def automatic_initialization_procedure():
             input("press")
             # rotate to max measure 
             omega = math.radians(degree)/ TIME
+            rospy.loginfo(f"Omega: {omega}")
             cmd_vel = Twist()
             cmd_vel.linear.x = 0.0
             cmd_vel.linear.y = 0.0
@@ -162,10 +165,25 @@ def automatic_initialization_procedure():
             cmd_vel_pub.publish(cmd_vel)
             rospy.Timer(rospy.Duration(secs=TIME),alignment_elapsed, oneshot=True)
 
-            if max_measure == math.inf:
-                max_measure = 3.15
+            # take a neighbourhood [-10 10] degrees of the maximum point
+            N_NEIGHBOURS = 10
+            start_indx = (degree - N_NEIGHBOURS)%359
+            end_indx = (degree + N_NEIGHBOURS + 1)%359
+            neighbourhood = []
+            if end_indx > start_indx:
+                neighbourhood = laser_values[start_indx : end_indx]
+            else:
+                neighbourhood_until_end = laser_values[start_indx :]
+                neighbourhood = neighbourhood_until_end + laser_values[0 : end_indx]
+            rospy.loginfo (f"neighbourhood: {neighbourhood}, start: {start_indx}, end: {end_indx}")
+            min_measure = min(neighbourhood)
+            degree = neighbourhood.index(min_measure)
+            rospy.loginfo (f"min: {min_measure}, degree: {degree}")
+            input("press2")
+            if min_measure == math.inf:
+                min_measure = 3.15
             # move to maximum_value/2
-            utils.trapezoidal_motion(cmd_vel_pub, (max_measure/2))
+            utils.trapezoidal_motion(cmd_vel_pub, (min_measure/2))
 
             # check covariance information 
             try:
@@ -236,6 +254,20 @@ if __name__ == '__main__':
         input("Press any key to start the initialization of localization:")
         automatic_initialization_procedure()
 
+        # check if the robot have reached the first wp
+        '''estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
+        
+        wp_x = waypoints[0][0]
+        wp_y = waypoints[0][1]
+
+        diff_x = abs(wp_x - estimated_pose.pose.pose.position.x)
+        diff_y = abs(wp_y - estimated_pose.pose.pose.position.y)
+        if diff_x < ERROR_X and diff_y < ERROR_Y:
+            rospy.loginfo(f"Waypoint reached")
+        else:
+            _ = go_to_next_wp(wp=waypoints[0], move_base_client=move_base_client, time = 0)'''
+        _ = go_to_next_wp(wp=waypoints[0], move_base_client=move_base_client, time = 0)
+
     #rate.sleep()
     
     input("Press any key to start the navigation:")
@@ -243,11 +275,11 @@ if __name__ == '__main__':
     curr_time = rospy.Time.now().secs + (rospy.Time.now().nsecs * 10**-9)
     start_time = curr_time
     log_file.write(f"\n\n\nStart time: {curr_time}")
-    for i, wp in enumerate(waypoints):
+    for i, wp in enumerate(waypoints[1:]):
         rospy.loginfo(f"Waypoint number {i}\n{wp}")
         log_file.write(f"\n\nWaypoint number: {i}\n{wp}")
         curr_time = go_to_next_wp(wp=wp, move_base_client=move_base_client, time = curr_time)
-        input("Press any key to continue:")
+        #input("Press any key to continue:")
         rate.sleep()
         
     minutes, sec = divmod(int(curr_time) - start_time, 60)
