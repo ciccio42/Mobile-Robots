@@ -21,8 +21,8 @@ pkg_path = rospack.get_path('exam')
 utils_lib_path = os.path.join(pkg_path, "scripts")
 sys.path.append(utils_lib_path)
 import utils
-from utils import V_MAX, OMEGA_MAX, TIME, USER_INPUT_VALID, REACHED_WP, ALIGNMENT_COMPLETE, \
-                  ALIGNMENT_COMPLETE, MEAN_ORIENTATION_IMU, STD_DEV_ORIENTATION_IMU
+from utils import TIME
+
 import argparse
  
 parser = argparse.ArgumentParser(description="Navigation Node parameters",
@@ -39,8 +39,8 @@ initialization_error_std_dev_y = 10 # m
 initialization_error_std_dev_yow = math.pi/4 # rad
 
 # Covariance threshold for initial localization
-COVARIANCE_X_THRESHOLD = 1 # m
-COVARIANCE_Y_THRESHOLD = 1 # m
+COVARIANCE_X_THRESHOLD = 0.5 # m
+COVARIANCE_Y_THRESHOLD = 0.5 # m
 COVARIANCE_YAW_THRESHOLD = 0.1 # rad
 TIME_LIMIT_FOR_INITIAL_LOCALIZATION = (2*math.pi)*2 # The time required to complete one rotation around the z-axis
 
@@ -50,6 +50,8 @@ cmd_vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
 
 ERROR_X = 0.20
 ERROR_Y = 0.20
+
+TIME_ELAPSED = False
 
 def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time):
     goal = utils.create_goal_msg(wp)
@@ -74,7 +76,7 @@ def initialize_pose(initial_pose: PoseWithCovarianceStamped) -> PoseWithCovarian
     initial_pose.pose.covariance[35] = initialization_error_std_dev_yow
     return initial_pose
 
-def alignment_elapsed(event=None):
+def timer_elapsed(event=None):
     # stop the robot
     cmd_vel = Twist()
     cmd_vel.linear.x = 0.0
@@ -84,27 +86,13 @@ def alignment_elapsed(event=None):
     cmd_vel.angular.y = 0.0
     cmd_vel.angular.z = 0.0
     cmd_vel_pub.publish(cmd_vel)
-    global ALIGNMENT_COMPLETE
-    ALIGNMENT_COMPLETE = True
+    global TIME_ELAPSED
+    TIME_ELAPSED = True
 
-def automatic_initialization_procedure():
-    
-    """Perform the initial localization
-    """
-    rate = rospy.Rate(10)
-    # Start by rotating
-    rate = rospy.Rate(10)
-    cmd_vel_msg = Twist()
-    cmd_vel_msg.angular.z = 1.0 # rad/s
+
+def rotation_procedure(cmd_vel_msg, open_space):
     start_time = rospy.Time.now()
     rospy.loginfo("Start localization rotation procedure")
-    time_elapsed = False
-    
-    # count number of particles
-    particle_cloud = rospy.wait_for_message("/particlecloud", PoseArray)
-    rospy.loginfo(f"Number of particles {len(particle_cloud.poses)}")
-    localization = False
-
     while True:
         rate.sleep()
         current_time = rospy.Time.now()
@@ -119,21 +107,43 @@ def automatic_initialization_procedure():
             covariance_yow = estimated_pose.pose.covariance[35]
             cmd_vel_pub.publish(cmd_vel_msg)
             cmd_vel_pub.publish(cmd_vel_msg)
-            if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD  and elapsed_time >= TIME_LIMIT_FOR_INITIAL_LOCALIZATION:
+            if ((covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD) and open_space == False)  or elapsed_time >= TIME_LIMIT_FOR_INITIAL_LOCALIZATION:
+                if (covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD):
+                    rospy.loginfo("Covariance under threshold")
+                else:
+                    rospy.loginfo("Rotating Time elapsed")
                 cmd_vel_msg.angular.z = 0
                 cmd_vel_pub.publish(cmd_vel_msg)
                 break
-            
-        
         except:
             rospy.loginfo("AMCL Pose not updated")
+
+
+def automatic_initialization_procedure():
+    
+    """Perform the initial localization
+    """
+    rate = rospy.Rate(10)
+    # Start by rotating
+    rate = rospy.Rate(10)
+    cmd_vel_msg = Twist()
+    cmd_vel_msg.angular.z = 1.0 # rad/s
+    time_elapsed = False
+
+    
+    # count number of particles
+    particle_cloud = rospy.wait_for_message("/particlecloud", PoseArray)
+    rospy.loginfo(f"Number of particles {len(particle_cloud.poses)}")
+    localization = False
+
+    rotation_procedure(cmd_vel_msg, False)
 
     estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
     rospy.loginfo (f"Estimated pose: {estimated_pose}")
     covariance_x = estimated_pose.pose.covariance[0]
     covariance_y = estimated_pose.pose.covariance[7]
     covariance_yow = estimated_pose.pose.covariance[35]
-    if covariance_yow < COVARIANCE_YAW_THRESHOLD:
+    if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
         localization = True
         return True
     else:
@@ -163,13 +173,13 @@ def automatic_initialization_procedure():
             cmd_vel.angular.y = 0.0
             cmd_vel.angular.z = omega
             cmd_vel_pub.publish(cmd_vel)
-            rospy.Timer(rospy.Duration(secs=TIME),alignment_elapsed, oneshot=True)
-            global ALIGNMENT_COMPLETE
-            ALIGNMENT_COMPLETE = False
-            while not ALIGNMENT_COMPLETE:
+            rospy.Timer(rospy.Duration(secs=TIME),timer_elapsed, oneshot=True)
+            global TIME_ELAPSED
+            TIME_ELAPSED = False
+            while not TIME_ELAPSED:
                 pass
             # take a neighbourhood [-10 10] degrees of the maximum point
-            N_NEIGHBOURS = 10
+            N_NEIGHBOURS = 45
             start_indx = (degree - N_NEIGHBOURS)%359
             end_indx = (degree + N_NEIGHBOURS + 1)%359
             neighbourhood = []
@@ -201,6 +211,13 @@ def automatic_initialization_procedure():
                     cmd_vel_pub.publish(cmd_vel_msg)
                     input ("Localization completed, press any key to reach next waypoint")
                     return True
+                else: 
+                    rotation_procedure(cmd_vel_msg, True)
+                    if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
+                        cmd_vel_msg.angular.z = 0
+                        cmd_vel_pub.publish(cmd_vel_msg)
+                        input ("Localization completed, press any key to reach next waypoint")
+                        return True
             except:
                 rospy.loginfo("AMCL Pose not updated")
 
@@ -224,10 +241,10 @@ def align_with_source_wp(theta):
     cmd_vel.angular.z = omega
     cmd_vel_pub.publish(cmd_vel)
 
-    rospy.Timer(rospy.Duration(secs=TIME),alignment_elapsed, oneshot=True)
-    global ALIGNMENT_COMPLETE
-    ALIGNMENT_COMPLETE = False
-    while not ALIGNMENT_COMPLETE:
+    rospy.Timer(rospy.Duration(secs=TIME),timer_elapsed, oneshot=True)
+    global TIME_ELAPSED
+    TIME_ELAPSED = False
+    while not TIME_ELAPSED:
         pass
     rospy.loginfo ("Alignment Completed")
 
