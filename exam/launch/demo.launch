@@ -6,18 +6,25 @@
     <arg name="odom_topic" default="odom_ekf"/>
     <arg name="num_path" default="3" />
     <arg name="run_aip" default="True" />
-    
+    <arg name="sim" default="True"/>
     <!--Parameters-->
     <param name="kalman" type="bool" value="False"/>
 
+  
+    <group if="$(arg sim)">
+    <!-- stuff that will only be evaluated if sim is true -->
     <!--run gazebo-->
-    <include file="$(find map2gazebo)/launch/turtlebot3_world.launch">        
-      <arg name="x_pos" default="$(arg x_pos)"/>
-      <arg name="y_pos" default="$(arg y_pos)"/>
-      <arg name="z_pos" default="0.0"/>
-      <arg name="yaw" default="$(arg yaw_orientation)"/>
-      <arg name="gui" default="true"/>
-    </include>
+      <include file="$(find map2gazebo)/launch/turtlebot3_world.launch">        
+        <arg name="x_pos" default="$(arg x_pos)"/>
+        <arg name="y_pos" default="$(arg y_pos)"/>
+        <arg name="z_pos" default="0.0"/>
+        <arg name="yaw" default="$(arg yaw_orientation)"/>
+        <arg name="gui" default="true"/>
+      </include>
+    </group>
+
+
+    
 
     <!--run rviz-->
     <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
