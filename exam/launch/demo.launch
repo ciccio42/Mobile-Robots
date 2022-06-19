@@ -10,6 +10,9 @@
     <!--Parameters-->
     <param name="kalman" type="bool" value="False"/>
 
+    <node pkg="tf" type="static_transform_publisher" 
+          name="my_tf" args="-32.514755 -21.044427 0 0 0 0.0 /map /world 30"/>
+
     <!--run gazebo-->
     <include file="$(find map2gazebo)/launch/turtlebot3_world.launch">        
       <arg name="x_pos" default="$(arg x_pos)"/>

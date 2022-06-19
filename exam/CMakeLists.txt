@@ -167,6 +167,7 @@ include_directories(
 catkin_install_python(PROGRAMS
   src/main.py
   scripts/KalmanFilter.py
+  scripts/line_extractor.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

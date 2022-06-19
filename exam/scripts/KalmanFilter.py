@@ -1,14 +1,13 @@
-from re import L
 from typing import List, Tuple
 import rospy, rospkg
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, Point
 from sensor_msgs.msg import JointState
+from laser_line_extraction.msg import LineSegment, LineSegmentList 
+from visualization_msgs.msg import Marker, MarkerArray
 import tf
 import rosbag
 from std_msgs.msg import Float64
-
-from laser_line_extraction.msg import LineSegment, LineSegmentList 
 import message_filters
 
 import numpy as np
@@ -66,6 +65,8 @@ class KalmanFilter:
         self.map_lines = np.load(map_lines_file_path)
 
         self.validation_gate = validation_gate 
+
+        self.predicted_line_markers_pub = rospy.Publisher("predicted_line_markers", MarkerArray, queue_size=100)
 
     def _initialize_state(self, state: Odometry, initial_pose: Pose):
         """
@@ -150,6 +151,48 @@ class KalmanFilter:
                                                                           self.predicted_state.pose.pose.orientation.w])
         return yaw
 
+    def _publish_lines(self, lines, reference_frame):
+        # create Marker Array Publisher
+        marker_array = MarkerArray()
+        marker_array.markers = []
+
+        for line in lines:
+            rospy.loginfo(f"Line {line}")
+            # marker header 
+            marker = Marker()
+            marker.header.frame_id = reference_frame
+
+            # marker field
+            marker.type = Marker.LINE_LIST
+            marker.action = Marker.ADD
+            # pose
+            marker.pose.orientation.w = 1
+
+            marker.color.r, marker.color.g, marker.color.b = (0, 255, 0)
+            marker.color.a = 0.5
+            marker.scale.x, marker.scale.y, marker.scale.z = (0.06, 0.06, 0.06)
+            
+            # compute line points
+            a = math.cos(line[1])
+            b = math.sin(line[1])
+            x0 = a * line[0]
+            y0 = b * line[0]
+            pt1 = (int(x0 + 100*(-b)), int(y0 + 100*(a)))
+            pt2 = (int(x0 - 100*(-b)), int(y0 - 100*(a)))
+            marker.points.append(Point(pt1[0], pt1[1], 0.02))
+            marker.points.append(Point(pt2[0], pt2[1], 0.02))
+            
+            marker_array.markers.append(marker)
+
+        # set markers id
+        id = 0
+        for m in marker_array.markers:
+            m.id = id
+            id += 1
+        
+        self.predicted_line_markers_pub.publish(marker_array)
+        
+
     def _measurement_prediction(self)->Tuple[List, List]:
         """Compute the expected measures
         Parameters
@@ -171,30 +214,23 @@ class KalmanFilter:
         # get the position wrt world frame
         p_world = self._get_position_wrt_world_frame()
         rospy.logdebug(f"Position wrt world frame {p_world}")
+        
         for indx, line in enumerate(self.map_lines):
-            if (p_world[0][0]*math.cos(line[1]) + p_world[1][0]*math.sin(line[1])) <=  line[0]:
-                # rho_hat = rho - (x_hat*cos(alpha) + y_hat*sin(alpha))
-                rho_hat = line[0] - (p_world[0][0]*math.cos(line[1]) + p_world[1][0]*math.sin(line[1]))
-                # alpha_hat = alpha - theta_hat 
-                alpha_hat = line[1] - theta_hat
-                z_hat.append([rho_hat, alpha_hat])
-                predicted_measures_jacobians.append([[0, 0, -1], [-math.cos(line[1]), -math.sin(line[1]), 0]])
-                rospy.logdebug(f"Line\n{line}")
-                rospy.logdebug(f"Expected line\n{[rho_hat, alpha_hat]}")
-            elif (p_world[0][0]*math.cos(line[1]) + p_world[1][0]*math.sin(line[1])) >  line[0]:
-                # rho_hat = rho - (x_hat*cos(alpha) + y_hat*sin(alpha))
-                rho_hat = - line[0] + (p_world[0][0]*math.cos(line[1]) + p_world[1][0]*math.sin(line[1]))
-                # alpha_hat = alpha - theta_hat 
-                alpha_hat = line[1] - theta_hat
-                z_hat.append([rho_hat, alpha_hat])
-                predicted_measures_jacobians.append([[0, 0, -1], [+math.cos(line[1]), +math.sin(line[1]), 0]])
-                rospy.logdebug(f"Line\n{line}")
-                rospy.logdebug(f"Expected line\n{[rho_hat, alpha_hat]}")
+            # rho_hat = rho - (x_hat*cos(alpha) + y_hat*sin(alpha))
+            rho_hat = line[0] - (p_world[0][0]*math.cos(line[1]) + p_world[1][0]*math.sin(line[1]))
+            # alpha_hat = alpha - theta_hat 
+            alpha_hat = line[1] - theta_hat
+            z_hat.append([rho_hat, alpha_hat])
+            predicted_measures_jacobians.append([[0, 0, -1], [-math.cos(line[1]), -math.sin(line[1]), 0]])
+            rospy.logdebug(f"Line\n{line}")
+            rospy.logdebug(f"Expected line\n{[rho_hat, alpha_hat]}")
 
+        self._publish_lines(self.map_lines[1:5], "world")
         rospy.logdebug("#####----####")
         rospy.logdebug(f"Map Lines\n{self.map_lines}")
         rospy.logdebug(f"Number of expected lines\n{len(z_hat)}")
         rospy.logdebug(f"Expected Lines\n{z_hat}\n")
+        
         return z_hat, predicted_measures_jacobians
     
     def _matching(self, z_hat: List, predicted_measures_jacobian_list: List, line_segments: List) -> Tuple[np.array, np.array, np.array]:

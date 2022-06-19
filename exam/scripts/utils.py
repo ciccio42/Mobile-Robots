@@ -165,12 +165,12 @@ def create_markers(waypoints):
         # position 
         marker.pose.position.x = waypoints[i][0]
         marker.pose.position.y = waypoints[i][1]
-        marker.pose.position.z = 0
+        marker.pose.position.z = 0.5
         # pose
         marker.pose.orientation.w = 1
 
-        marker.color.r, marker.color.g, marker.color.b = (0, 255, 0)
-        marker.color.a = 0.5
+        marker.color.r, marker.color.g, marker.color.b = (0, 1, 0)
+        marker.color.a = 1
         marker.scale.x, marker.scale.y, marker.scale.z = (0.06, 0.06, 0.06)
         marker_array.markers.append(marker)
 
