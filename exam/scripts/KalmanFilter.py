@@ -3,7 +3,8 @@ import rospy, rospkg
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose, Point
 from sensor_msgs.msg import JointState
-from laser_line_extraction.msg import LineSegment, LineSegmentList 
+from laser_line_extraction.msg import LineSegment, LineSegmentList
+from std_msgs.msg import ColorRGBA 
 from visualization_msgs.msg import Marker, MarkerArray
 import tf
 import rosbag
@@ -16,6 +17,13 @@ import math
 import os, sys
 from datetime import datetime
 import rosbag
+
+import argparse
+ 
+parser = argparse.ArgumentParser(description="Kalman Filter args",
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument("-pub_predicted_lines", "--publish-predicted-lines", default="False", help="Publish the predicted lines or no")
+args, unknown = parser.parse_known_args()
 
 # set the mean and std. var for guassian noise on linear motion model
 MEAN = 0.0 # m
@@ -45,6 +53,7 @@ dt_string = now.strftime("%d%m%Y_%H_%M")
 bag_file_dir = os.path.join(log_folder, dt_string)
 if not os.path.exists(bag_file_dir) and compute_loss: 
     os.makedirs(bag_file_dir)
+
 
 class KalmanFilter:
     
@@ -157,7 +166,7 @@ class KalmanFilter:
         marker_array.markers = []
 
         for line in lines:
-            rospy.loginfo(f"Line {line}")
+            rospy.logdebug(f"Line {line}")
             # marker header 
             marker = Marker()
             marker.header.frame_id = reference_frame
@@ -168,7 +177,7 @@ class KalmanFilter:
             # pose
             marker.pose.orientation.w = 1
 
-            marker.color.r, marker.color.g, marker.color.b = (0, 255, 0)
+            marker.color.r, marker.color.g, marker.color.b = (0, 1, 0)
             marker.color.a = 0.5
             marker.scale.x, marker.scale.y, marker.scale.z = (0.06, 0.06, 0.06)
             
@@ -179,9 +188,10 @@ class KalmanFilter:
             y0 = b * line[0]
             pt1 = (int(x0 + 100*(-b)), int(y0 + 100*(a)))
             pt2 = (int(x0 - 100*(-b)), int(y0 - 100*(a)))
-            marker.points.append(Point(pt1[0], pt1[1], 0.02))
-            marker.points.append(Point(pt2[0], pt2[1], 0.02))
-            
+            marker.points.append(Point(pt1[0], pt1[1], 0.05))
+            marker.points.append(Point(pt2[0], pt2[1], 0.05))
+            marker.colors.append(ColorRGBA(1,0,0,1))
+            marker.colors.append(ColorRGBA(1,0,0,1))
             marker_array.markers.append(marker)
 
         # set markers id
@@ -218,18 +228,23 @@ class KalmanFilter:
         for indx, line in enumerate(self.map_lines):
             # rho_hat = rho - (x_hat*cos(alpha) + y_hat*sin(alpha))
             rho_hat = line[0] - (p_world[0][0]*math.cos(line[1]) + p_world[1][0]*math.sin(line[1]))
-            # alpha_hat = alpha - theta_hat 
-            alpha_hat = line[1] - theta_hat
-            z_hat.append([rho_hat, alpha_hat])
-            predicted_measures_jacobians.append([[0, 0, -1], [-math.cos(line[1]), -math.sin(line[1]), 0]])
-            rospy.logdebug(f"Line\n{line}")
-            rospy.logdebug(f"Expected line\n{[rho_hat, alpha_hat]}")
+            if abs(rho_hat) <= LIDAR_MAX_RANGE:
+                # alpha_hat = alpha - theta_hat 
+                alpha_hat = line[1] - theta_hat
+                z_hat.append([rho_hat, alpha_hat])
+                predicted_measures_jacobians.append([[0, 0, -1], [-math.cos(line[1]), -math.sin(line[1]), 0]])
+                rospy.logdebug(f"Line\n{line}")
+                rospy.logdebug(f"Expected line\n{[rho_hat, alpha_hat]}")
+        
+        z_hat = np.array(z_hat)
 
-        self._publish_lines(self.map_lines[1:5], "world")
+        if args.publish_predicted_lines == "True":
+            self._publish_lines(z_hat, "base_footprint")
+
         rospy.logdebug("#####----####")
-        rospy.logdebug(f"Map Lines\n{self.map_lines}")
+        rospy.logdebug(f"Map Lines\n{self.map_lines[:1]}")
         rospy.logdebug(f"Number of expected lines\n{len(z_hat)}")
-        rospy.logdebug(f"Expected Lines\n{z_hat}\n")
+        rospy.logdebug(f"Expected Lines\n{z_hat[:1]}\n")
         
         return z_hat, predicted_measures_jacobians
     
@@ -546,7 +561,6 @@ def time_sync_callback(joint_state: JointState, line_segment_list: LineSegmentLi
             rospy.loginfo(f"Error x {error_x}")
             rospy.loginfo(f"Error y {error_y}")
             rospy.loginfo(f"Error yaw {error_yaw}")
-
 
 if __name__ == '__main__':
     

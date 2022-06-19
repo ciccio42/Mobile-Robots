@@ -115,7 +115,7 @@ def publish_lines(lines, reference_frame):
     marker_array.markers = []
 
     for line in lines:
-        rospy.loginfo(f"Line {line}")
+        rospy.logdebug(f"Line {line}")
         # marker header 
         marker = Marker()
         marker.header.frame_id = reference_frame
@@ -243,9 +243,7 @@ def main(default_file = None):
         polar_coordiantes[i][1] = theta
         rospy.logdebug(f"Rho {rho} - Theta {theta}\n")
 
-
     polar_coordiantes = filter_lines(polar_coordiantes)
-    print(polar_coordiantes)
     publish_lines(polar_coordiantes[:10], reference_frame = "world")
     rospy.logdebug(f"Filtered lines\n{polar_coordiantes}")
     rospy.logdebug(f"Remaining lines {np.size(polar_coordiantes)}")
