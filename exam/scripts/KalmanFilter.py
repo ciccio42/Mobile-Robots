@@ -10,6 +10,7 @@ import tf
 import rosbag
 from std_msgs.msg import Float64
 import message_filters
+from rospy.exceptions import ROSException, ROSInterruptException
 
 import numpy as np
 import copy
@@ -507,64 +508,71 @@ class KalmanFilter:
     def get_last_state(self) -> Odometry:
         return self.updated_state
 
+
 def time_sync_callback(joint_state: JointState, line_segment_list: LineSegmentList):
     
-    global callback_cnt
-    ekf.prediction(joint_state)
-    if (callback_cnt%30 == 0):
-        rospy.loginfo(f"Predicted Position\n {ekf.predicted_state.pose.pose.position}")
-        rospy.loginfo(f"Predicted Orientation\n {ekf.predicted_state.pose.pose.orientation}")
-    
-    #if (callback_cnt%10 == 0):
-    complete_innovation, measured_line_covariance_block_diagonal, complete_predicted_line_jacobians = ekf.measure(line_segment_list) 
-    ekf.update(complete_innovation, measured_line_covariance_block_diagonal, complete_predicted_line_jacobians)
-    if (callback_cnt%30 == 0):
-        rospy.loginfo(f"Updated Position\n{ekf.updated_state.pose.pose.position}")
-        rospy.loginfo(f"Updated Orientation\n{ekf.updated_state.pose.pose.orientation}")
-    #else:
-    #    ekf.updated_state = copy.deepcopy(ekf.predicted_state)
-
-    callback_cnt += 1
-    
-    odom_ekf_pub.publish(ekf.get_last_state())
-
-    if compute_loss:
-        # get GT odometry
-        odom_msg = rospy.wait_for_message("/odom", Odometry)
-        new_odometry = ekf.get_last_state()
-        # Get the ground truth pose
-        gt_pose = odom_msg.pose
-        # Get updated pose
-        odom_ekf_pub.publish(ekf.get_last_state())
-        updated_pose = ekf.get_last_state().pose 
-        error_x = Float64(gt_pose.pose.position.x - updated_pose.pose.position.x)
-        error_y = Float64(gt_pose.pose.position.y - updated_pose.pose.position.y)
-        # get GT quaternion
-        # Robot orientation and position estimated through odometry
-        _, _, yaw_gt = tf.transformations.euler_from_quaternion(quaternion=[gt_pose.pose.orientation.x,
-                                                                            gt_pose.pose.orientation.y,
-                                                                            gt_pose.pose.orientation.z,
-                                                                            gt_pose.pose.orientation.w])
-
-        _, _, yaw_updated_pose = tf.transformations.euler_from_quaternion(quaternion=[updated_pose.pose.orientation.x,
-                                                                                    updated_pose.pose.orientation.y,
-                                                                                    updated_pose.pose.orientation.z,
-                                                                                    updated_pose.pose.orientation.w]) 
-        error_yaw = Float64(yaw_gt - yaw_updated_pose)                     
-
-        bag.write('error_x', error_x)
-        bag.write('error_y', error_y)
-        bag.write('error_yaw', error_yaw)
-        bag.write('odometry_ekf', ekf.get_last_state())
-        bag.write('odometry_gt', odom_msg)
+    if joint_state == None:
+        rospy.logerr("No joint state received")
+        return False
+    else:
+        global callback_cnt
+        ekf.prediction(joint_state)
         if (callback_cnt%30 == 0):
-            rospy.loginfo(f"Error x {error_x}")
-            rospy.loginfo(f"Error y {error_y}")
-            rospy.loginfo(f"Error yaw {error_yaw}")
+            rospy.loginfo(f"Predicted Position\n {ekf.predicted_state.pose.pose.position}")
+            rospy.loginfo(f"Predicted Orientation\n {ekf.predicted_state.pose.pose.orientation}")
+        
+        if line_segment_list == None:
+            rospy.logwarn("No line segments received, perform only prediction")
+            ekf.updated_state = copy.deepcopy(ekf.predicted_state)
+        else:
+            complete_innovation, measured_line_covariance_block_diagonal, complete_predicted_line_jacobians = ekf.measure(line_segment_list) 
+            ekf.update(complete_innovation, measured_line_covariance_block_diagonal, complete_predicted_line_jacobians)
+        
+        if (callback_cnt%30 == 0):
+            rospy.loginfo(f"Updated Position\n{ekf.updated_state.pose.pose.position}")
+            rospy.loginfo(f"Updated Orientation\n{ekf.updated_state.pose.pose.orientation}")
+
+        callback_cnt += 1
+        
+        odom_ekf_pub.publish(ekf.get_last_state())
+
+        if compute_loss:
+            # get GT odometry
+            odom_msg = rospy.wait_for_message("/odom", Odometry)
+            new_odometry = ekf.get_last_state()
+            # Get the ground truth pose
+            gt_pose = odom_msg.pose
+            # Get updated pose
+            odom_ekf_pub.publish(ekf.get_last_state())
+            updated_pose = ekf.get_last_state().pose 
+            error_x = Float64(gt_pose.pose.position.x - updated_pose.pose.position.x)
+            error_y = Float64(gt_pose.pose.position.y - updated_pose.pose.position.y)
+            # get GT quaternion
+            # Robot orientation and position estimated through odometry
+            _, _, yaw_gt = tf.transformations.euler_from_quaternion(quaternion=[gt_pose.pose.orientation.x,
+                                                                                gt_pose.pose.orientation.y,
+                                                                                gt_pose.pose.orientation.z,
+                                                                                gt_pose.pose.orientation.w])
+
+            _, _, yaw_updated_pose = tf.transformations.euler_from_quaternion(quaternion=[updated_pose.pose.orientation.x,
+                                                                                        updated_pose.pose.orientation.y,
+                                                                                        updated_pose.pose.orientation.z,
+                                                                                        updated_pose.pose.orientation.w]) 
+            error_yaw = Float64(yaw_gt - yaw_updated_pose)                     
+
+            bag.write('error_x', error_x)
+            bag.write('error_y', error_y)
+            bag.write('error_yaw', error_yaw)
+            bag.write('odometry_ekf', ekf.get_last_state())
+            bag.write('odometry_gt', odom_msg)
+            if (callback_cnt%30 == 0):
+                rospy.loginfo(f"Error x {error_x}")
+                rospy.loginfo(f"Error y {error_y}")
+                rospy.loginfo(f"Error yaw {error_yaw}")
 
 if __name__ == '__main__':
     
-    rospy.init_node("ekf_test")
+    rospy.init_node("ekf_test", log_level=rospy.INFO)
     odom_ekf_pub = rospy.Publisher("/odom_ekf", Odometry, queue_size=1)
     joint_state_sub = message_filters.Subscriber('/joint_states', JointState)
     line_extractor_sub = message_filters.Subscriber('/line_segments', LineSegmentList)
@@ -586,9 +594,24 @@ if __name__ == '__main__':
         bag = rosbag.Bag(bag_file, 'w')
     
     ts = message_filters.TimeSynchronizer([joint_state_sub, line_extractor_sub], 10)
-    ts.registerCallback(time_sync_callback)
-        
+    ts.registerCallback(time_sync_callback)   
     rospy.spin()
 
-    if compute_loss:
-        bag.close()
+
+"""    joint_state = None
+    line_segment_list = None
+
+    while True:
+        try:
+            joint_state = rospy.wait_for_message("/joint_states", JointState, timeout = 0.05)
+            line_segment_list = rospy.wait_for_message("/line_segments", LineSegmentList, timeout = 0.05)
+        except ROSInterruptException:
+            break
+        except ROSException:
+            rospy.loginfo("Timeout excedeed")           
+        finally:
+            time_sync_callback(joint_state=joint_state, line_segment_list=line_segment_list)
+            joint_state = None
+            line_segment_list = None
+            if compute_loss:
+                bag.close()"""
