@@ -41,9 +41,9 @@ initialization_error_std_dev_y = 10 # m
 initialization_error_std_dev_yow = math.pi/4 # rad
 
 # Covariance threshold for initial localization
-COVARIANCE_X_THRESHOLD = 0.5 # m
-COVARIANCE_Y_THRESHOLD = 0.5 # m
-COVARIANCE_YAW_THRESHOLD = 0.1 # rad
+COVARIANCE_X_THRESHOLD = 0.5 # m^2
+COVARIANCE_Y_THRESHOLD = 0.5 # m^2
+COVARIANCE_YAW_THRESHOLD = 0.1 # rad^2
 TIME_LIMIT_FOR_INITIAL_LOCALIZATION = (2*math.pi)*2 # The time required to complete one rotation around the z-axis
 
 # waypoints file path
@@ -111,12 +111,12 @@ def rotation_procedure(open_space):
         rate.sleep()
         current_time = rospy.Time.now()
         elapsed_time = (current_time.secs + (current_time.nsecs * 10**-9)) - (start_time.secs + (start_time.nsecs * 10**-9))
-        rospy.loginfo(f"Localization phase - Elapsed time {elapsed_time}")
+        rospy.logdebug(f"Localization phase - Elapsed time {elapsed_time}")
         cmd_vel_pub.publish(cmd_vel_msg)
         estimated_pose = get_amcl_pose()
         covariance_x = estimated_pose.pose.covariance[0]
         covariance_y = estimated_pose.pose.covariance[7]
-        covariance_yow = estimated_pose.pose.covariance[35]
+        covariance_yaw = estimated_pose.pose.covariance[35]
             
         if ((covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD) and open_space == False)  or elapsed_time >= TIME_LIMIT_FOR_INITIAL_LOCALIZATION:
             if (covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD):
@@ -190,11 +190,14 @@ def automatic_initialization_procedure():
             end_indx = (degree + N_NEIGHBOURS + 1)%359
             neighbourhood = []
             if end_indx > start_indx:
-                neighbourhood = laser_values[start_indx : end_indx]
+                neighbourhood = list(laser_values[start_indx : end_indx])
             else:
-                neighbourhood_until_end = laser_values[start_indx :]
-                neighbourhood = neighbourhood_until_end + laser_values[0 : end_indx]
+                neighbourhood_until_end = list(laser_values[start_indx :])
+                neighbourhood = list(neighbourhood_until_end) + list(laser_values[0 : end_indx])
             rospy.loginfo (f"neighbourhood: {neighbourhood}, start: {start_indx}, end: {end_indx}")
+            for indx, _ in enumerate(neighbourhood):
+                if neighbourhood[indx] == 0.0:
+                    neighbourhood[indx] = math.inf
             min_measure = min(neighbourhood)
             degree = neighbourhood.index(min_measure)
             rospy.loginfo (f"min: {min_measure}, degree: {degree}")
@@ -269,16 +272,19 @@ if __name__ == '__main__':
     # create a move_base client
     move_base_client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
 
-
     # create a amcl update client 
+    rospy.loginfo("Waiting for request_nomotion_update service...")
     rospy.wait_for_service("request_nomotion_update")
     amcl_update_client = rospy.ServiceProxy("request_nomotion_update", Empty)
 
-
+    # create service client to clean up the local coastmap
+    rospy.loginfo("Waiting for clear_costmaps...")
+    rospy.wait_for_service("/move_base/clear_costmaps")
+    clear_costmaps_client = rospy.ServiceProxy("/move_base/clear_costmaps", Empty)
 
     # Waits until the action server has started up and started
     # listening for goals.
-    rospy.loginfo("Waiting for action server....")
+    rospy.loginfo("Waiting for move base action server....")
     move_base_client.wait_for_server()
 
     # get the path waypoints
@@ -326,6 +332,7 @@ if __name__ == '__main__':
     start_time = curr_time
     log_file.write(f"\n\n\nStart time: {curr_time}")
     for i, wp in enumerate(waypoints[1:]):
+        clear_costmaps_client()
         rospy.loginfo(f"Waypoint number {i}\n{wp}")
         log_file.write(f"\n\nWaypoint number: {i}\n{wp}")
         curr_time = go_to_next_wp(wp=wp, move_base_client=move_base_client, time = curr_time)
