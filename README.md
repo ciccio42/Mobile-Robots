@@ -6,8 +6,10 @@ Repository containing the exercises for the *"Mobile Robots for Critical Mission
 * Marco Preziosi, mpreziosi@unisa.it
 
 # Dependencies
-Follow the rules [here](https://emanual.robotis.com/docs/en/platform/turtlebot3/quick-start/) to install turtlebot packages
-
+Follow the rules [here](https://emanual.robotis.com/docs/en/platform/turtlebot3/quick-start/) to install turtlebot packages 
+```bash
+sudo apt-get install ros-noetic-teb-local-planner # install teb local planner
+```
 ## How to run
 1. Create a ROS workspace
 2. Read *Dependencies*

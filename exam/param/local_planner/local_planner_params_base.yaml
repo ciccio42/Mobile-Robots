@@ -1,4 +1,4 @@
-TrajectoryPlannerROS:
+base_local_planner: base_local_planner/TrajectoryPlannerROS
 
 # Robot Configuration Parameters
   max_vel_x: 0.18
@@ -24,3 +24,6 @@ TrajectoryPlannerROS:
   vx_samples: 18
   vtheta_samples: 20
   sim_granularity: 0.05
+
+
+
