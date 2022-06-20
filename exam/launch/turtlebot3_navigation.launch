@@ -3,9 +3,11 @@
     <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
     <arg name="map_file" default="$(find turtlebot3_navigation)/maps/map.yaml"/>
     <arg name="open_rviz" default="true"/>
-    <arg name="move_forward_only" default="false"/>
     <arg name="odometry_topic" default="odom" />
-    
+    <arg name="global_planner_param_turtlebot3_world" default="Global" />
+    <arg name="local_planner_param_turtlebot3_world" default="DWA" />
+
+
     <!-- AMCL Initial Pose arguments-->
     <arg name="initial_pose_x" default="0.0"/>
     <arg name="initial_pose_y" default="0.0"/>
@@ -29,8 +31,10 @@
     <!-- move_base -->
     <include file="$(find exam)/launch/move_base.launch">
     <arg name="model" value="$(arg model)" />
-    <arg name="move_forward_only" value="$(arg move_forward_only)"/>
     <arg name="odom_topic" value="$(arg odometry_topic)"/>
+    <arg name="global_planner_param" value="$(arg global_planner_param_turtlebot3_world)"/>
+    <arg name="local_planner_param" value="$(arg local_planner_param_turtlebot3_world)"/>
+
     </include>
 
     <!-- rviz -->

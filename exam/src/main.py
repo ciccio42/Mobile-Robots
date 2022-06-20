@@ -15,6 +15,7 @@ import numpy as np
 from datetime import datetime
 import os
 import tf
+import sys
 
 # get the path to the current package
 rospack = rospkg.RosPack()
@@ -158,7 +159,7 @@ def automatic_initialization_procedure():
 
 
     if localization == False:
-        input("Press any key to start to move into open space")
+        #input("Press any key to start to move into open space")
         while True:
             laser_values = utils.get_laser_scan("/scan").ranges
 
@@ -166,7 +167,7 @@ def automatic_initialization_procedure():
             max_measure = max(laser_values)
             degree = laser_values.index(max_measure)
             rospy.loginfo (f"max: {max_measure}, degree: {degree}")
-            input("press")
+            #input("press")
             # rotate to max measure 
             omega = math.radians(degree)/ TIME
             rospy.loginfo(f"Omega: {omega}")
@@ -197,7 +198,7 @@ def automatic_initialization_procedure():
             min_measure = min(neighbourhood)
             degree = neighbourhood.index(min_measure)
             rospy.loginfo (f"min: {min_measure}, degree: {degree}")
-            input("press2")
+            #input("press2")
             if min_measure == math.inf:
                 min_measure = 3.15
 
@@ -211,7 +212,7 @@ def automatic_initialization_procedure():
             covariance_y = estimated_pose.pose.covariance[7]
             covariance_yow = estimated_pose.pose.covariance[35]
             if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
-                input ("Localization completed, press any key to reach next waypoint")
+                #input ("Localization completed, press any key to reach next waypoint")
                 return True
                 
 def align_with_source_wp(theta):
@@ -299,7 +300,7 @@ if __name__ == '__main__':
     rospy.loginfo("###########")
     
     if args.run_automatic_initialization_procedure == "True":
-        input("Press any key to start the initialization of localization:")
+        #input("Press any key to start the initialization of localization:")
         automatic_initialization_procedure()
 
         # check if the robot have reached the first wp
@@ -319,7 +320,7 @@ if __name__ == '__main__':
 
     #rate.sleep()
     
-    input("Press any key to start the navigation:")
+    #input("Press any key to start the navigation:")
     log_file.write(f"Start Simulation. \nStart point: {waypoints[0]} - Goal point: {waypoints[-1]}")
     curr_time = rospy.Time.now().secs + (rospy.Time.now().nsecs * 10**-9)
     start_time = curr_time
@@ -334,6 +335,9 @@ if __name__ == '__main__':
     minutes, sec = divmod(int(curr_time) - start_time, 60)
     log_file.write(f"\n\nGoal reached in: {minutes} m {int(sec)} s")
     log_file.close()
+
+
+    # os.system("rosnode kill -a")
     
     """
     while(not rospy.is_shutdown()):
