@@ -4,11 +4,12 @@
     <arg name="y_pos" default="-9.5"/>
     <arg name="yaw_orientation" default="0.0"/>
     <arg name="odom_topic" default="odom_ekf"/>
-    <arg name="num_path" default="1" />
+    <arg name="num_path" default="test_1" />
     <arg name="run_aip" default="False" />
     
     <!--Parameters-->
     <param name="kalman" type="bool" value="False"/>
+    <param name="sim" type="bool" value="True" />
 
     <node pkg="tf" type="static_transform_publisher" 
           name="my_tf" args="-32.514755 -21.044427 0 0 0 0.0 /map /world 30"/>

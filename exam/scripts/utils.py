@@ -171,7 +171,7 @@ def create_markers(waypoints):
 
         marker.color.r, marker.color.g, marker.color.b = (0, 1, 0)
         marker.color.a = 1
-        marker.scale.x, marker.scale.y, marker.scale.z = (0.06, 0.06, 0.06)
+        marker.scale.x, marker.scale.y, marker.scale.z = (0.1, 0.1, 0.1)
         marker_array.markers.append(marker)
 
     # set markers id

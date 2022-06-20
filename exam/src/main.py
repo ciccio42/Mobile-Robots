@@ -1,6 +1,5 @@
 import math
 import os, sys
-from threading import currentThread
 import rospy, rospkg
 from visualization_msgs.msg import MarkerArray
 import actionlib
@@ -8,7 +7,9 @@ from actionlib_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist, PoseArray
 from sensor_msgs.msg import LaserScan
 from move_base_msgs.msg import MoveBaseAction
+from gazebo_msgs.srv import SetModelState
 from gazebo_msgs.msg import ModelState
+import tf.transformations 
 
 import numpy as np 
 from datetime import datetime
@@ -44,6 +45,31 @@ TIME_LIMIT_FOR_INITIAL_LOCALIZATION = 2*math.pi # The time required to complete 
 
 # waypoints file path
 path_file_path = os.path.join(pkg_path, f"config/path_")
+
+def publish_pose_gazebo(service_proxy: rospy.ServiceProxy, wp: list):
+    # create service message
+    model_state_req = ModelState()
+
+    # model name
+    model_state_req.model_name = "turtlebot3_waffle_pi"
+
+    # reference frame
+    model_state_req.reference_frame = "map"
+
+    # position
+    model_state_req.pose.position.x = wp[0]
+    model_state_req.pose.position.y = wp[1]
+    model_state_req.pose.position.z = 0.0
+    
+    # orientation
+    orientation = tf.transformations.quaternion_about_axis(wp[2], (0, 0, 1))
+    model_state_req.pose.orientation.x = orientation[0]
+    model_state_req.pose.orientation.y = orientation[1]
+    model_state_req.pose.orientation.z = orientation[2]
+    model_state_req.pose.orientation.w = orientation[3]
+
+    # call service
+    service_proxy(model_state_req)
 
 def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time):
     goal = utils.create_goal_msg(wp)
@@ -129,7 +155,7 @@ def automatic_initialization_procedure():
 if __name__ == '__main__':
 
     rospy.init_node("navigation_node")
-    rate = rospy.Rate(0.2)
+    rate = rospy.Rate(1)
     
     # complete the name of the path file
     path_file_path = path_file_path + args.path_file_number + ".csv"
@@ -148,8 +174,10 @@ if __name__ == '__main__':
 
     # initialize the robot pose
     initial_pose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=1)
-    gazebo_initial_pose_pub = rospy.Publisher('/gazebo/set_model_state', ModelState, queue_size=1)
 
+    # marker array publisher
+    markers_pub = rospy.Publisher("/visualization_marker_array", MarkerArray, queue_size=100)
+    
     # create a move_base client
     move_base_client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
     # Waits until the action server has started up and started
@@ -160,9 +188,7 @@ if __name__ == '__main__':
     # get the path waypoints
     waypoints, initial_pose = utils.read_csv_file(path_file_path)
     # publish waypoint markers
-    markers_pub = rospy.Publisher("/visualization_marker_array", MarkerArray, queue_size=100)
     markers = utils.create_markers(waypoints)
-    markers_pub.publish(markers_pub)
     # log_file.close()
     # sys.exit()
     rospy.loginfo("Publishing initial pose....")
@@ -174,6 +200,16 @@ if __name__ == '__main__':
     rospy.loginfo(f"Waypoints: {waypoints}")
     rospy.loginfo("###########")
     
+    if rospy.get_param("sim") == True:
+        # wait for gazebo service
+        rospy.wait_for_service('/gazebo/set_model_state')
+        gazebo_initial_pose_service_proxy = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+        publish_pose_gazebo(gazebo_initial_pose_service_proxy, waypoints[0])
+
+    for i in range(5):
+        markers_pub.publish(markers)
+        rate.sleep()
+
     if args.run_automatic_initialization_procedure == "True":
         input("Press any key to start the initialization of localization:")
         automatic_initialization_procedure()
