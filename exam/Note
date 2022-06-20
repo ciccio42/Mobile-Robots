@@ -1,0 +1,3 @@
+1. Controllare angolo quando si muove in openspace
+2. Controllare il comando di rotazione, perché non ruota dell'angolo aspettato
+3. Ridurre la covarianza di soglia, perché il laser in reale fa veramente pena, cambiare la tipologia di modello di laser

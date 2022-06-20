@@ -3,6 +3,8 @@ import rospy
 from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Pose, Twist, PoseStamped, PoseWithCovarianceStamped, PoseWithCovariance
 from move_base_msgs.msg import MoveBaseActionGoal, MoveBaseGoal
+from sensor_msgs.msg import LaserScan
+from tf import TransformListener
 from actionlib_msgs.msg import GoalID
 import tf
 import math
@@ -271,4 +273,97 @@ def trapezoidal_motion(cmd_vel_pub: rospy.Publisher,delta):
         cmd_vel_pub.publish(cmd_vel)
         
         r.sleep()
+
+def convert_laser_measure_polar_to_cartesian(measures: np.array):
+    """Convert laser ranges defined in polar coordinates into the corresponding cartesian coordinates
     
+    Parameters
+    ----------
+        measures: np.array
+            array of range measures
+    Returns
+    -------
+        measure_cartesian: list
+            list of tuples (x,y)
+    """   
+    measure_cartesian = []
+
+    for angle, ray in enumerate(measures):
+        measure_cartesian.append(convert_polar_to_cartesian(ray=ray, angle=((angle*2*math.pi)/(360))))
+
+    measure_cartesian = np.array(measure_cartesian)
+
+    return measure_cartesian
+
+def covert_laser_scan_to_frame(tf_listener: tf.listener , measure_base_scan: np.array, frame: str):
+    """Convert measures defined in /scan frame, into the target frame frame
+    
+    Parameters
+    ----------
+        tf_listener: tf_listener
+            Transform listener
+        measure_base_scan: np.array
+            Measures defined in /scan frame
+        frame:
+            Target frame, with respect to which define the measures
+    Returns
+    -------
+        measaure_cartesian_target: list
+            list of tuples (x,y) with respect to target frame
+    """   
+    t = tf_listener.getLatestCommonTime(frame, "base_scan")
+    position, quaternion = tf_listener.lookupTransform(frame, "base_scan", t)
+
+    A_target_base_scan = np.zeros((4,4))
+    
+    A_target_base_scan[:3,:3] = tf.transformations.quaternion_matrix(quaternion)[:3, :3]
+    A_target_base_scan[0][3] = position[0]
+    A_target_base_scan[1][3] = position[1]
+    A_target_base_scan[2][3] = position[2]
+    A_target_base_scan[3][3] = 1
+    rospy.logdebug("{} to base scan {}".format(frame, A_target_base_scan))
+    
+    measaure_cartesian_target = []
+    for measure in  measure_base_scan:
+        pos_base_scan = np.array([[measure[0], measure[1], 0, 1]]).transpose()
+        pos_target = np.matmul(A_target_base_scan, pos_base_scan)
+        pos_target = [pos_target[0][0], pos_target[1][0], pos_target[2][0]]
+        measaure_cartesian_target.append(pos_target)
+
+    measaure_cartesian_target = np.array(measaure_cartesian_target)
+    return measaure_cartesian_target
+
+
+def get_laser_scan(laser_scan_topic: str):
+    """Get the measure from laser scan
+    
+    Parameters
+    ----------
+        laser_scan_topic: str
+            Laser scan topic name
+    Returns
+    -------
+        laser_scan_msg: sensor_msgs.LaserScan
+            Laser scan message
+    """
+    laser_scan_msg = rospy.wait_for_message(laser_scan_topic, LaserScan)
+
+    return laser_scan_msg
+
+
+def get_measure_from_scan():
+    tf_listener = TransformListener()
+    tf_listener.waitForTransform("/odom", "/imu_link", rospy.Time(), rospy.Duration(20.0))
+    initial_measure_polar = get_laser_scan("/scan")
+
+    # convert polar to cartesian
+    measures_cartesian = convert_laser_measure_polar_to_cartesian(initial_measure_polar.ranges)
+
+    measures_cartesian_base_footprint = covert_laser_scan_to_frame(tf_listener=tf_listener, measure_base_scan=measures_cartesian, frame="base_footprint")
+    rospy.logdebug("\nCurrent measure  \nfront: {} \nleft: {} \nbehind: {} \nright: {}".format(measures_cartesian_base_footprint[0],
+                                                                                            measures_cartesian_base_footprint[90],
+                                                                                            measures_cartesian_base_footprint[180],
+                                                                                            measures_cartesian_base_footprint[270]))
+    
+                                           
+    return measures_cartesian_base_footprint 
