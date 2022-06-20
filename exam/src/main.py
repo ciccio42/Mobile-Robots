@@ -37,9 +37,9 @@ args, unknown = parser.parse_known_args()
 # Mean initialization error
 initialization_error_mean = 0.0
 # STD DEV initialization error
-initialization_error_std_dev_x = 15 # m
-initialization_error_std_dev_y = 10 # m
-initialization_error_std_dev_yow = math.pi/4 # rad
+initialization_error_std_dev_x = 0 # m
+initialization_error_std_dev_y = 0 # m
+initialization_error_std_dev_yow = 0 # rad
 
 # Covariance threshold for initial localization
 COVARIANCE_X_THRESHOLD = 0.5 # m^2
