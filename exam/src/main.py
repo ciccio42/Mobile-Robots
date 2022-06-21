@@ -281,7 +281,8 @@ def align_with_source_wp(theta):
     delta_theta = (theta-y)
     rospy.loginfo(f"Source wp:\n{theta}\nY:\n{y}")
     rospy.loginfo("\nAlignment with source waypoint orientation:\ntheta {}".format(delta_theta))
-    omega = theta / TIME
+    omega = delta_theta / TIME
+    rospy.loginfo (f"\n\nOmega alignment: {omega}")
     cmd_vel = Twist()
     cmd_vel.linear.x = 0.0
     cmd_vel.linear.y = 0.0
