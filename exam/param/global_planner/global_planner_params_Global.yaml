@@ -5,7 +5,7 @@ GlobalPlanner:
   allow_unknown: true
   default_tolerance: 0.0
   visualize_potential: false
-  use_dijkstra: true
+  use_dijkstra: false
   use_quadratic: true
   use_grid_path: true
   old_navfn_behavior: false

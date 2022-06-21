@@ -50,6 +50,7 @@ for i, test in enumerate(dict_test.keys()):
     print(f"roslaunch exam demo.launch sim:=True num_path:={t[0]} global_planner_param_demo:={t[1]} local_planner_param_demo:={t[2]}")
     os.system (f"roslaunch exam demo.launch sim:=True num_path:={t[0]} global_planner_param_demo:={t[1]} local_planner_param_demo:={t[2]}")
     log_file.write(f"\nTest {i} completed! [{t[0]} {t[1]} {t[2]}]")
+    os.system (f"rosnode kill -a")
 
 log_file.write(f"\n\nAll test completed")
 log_file.close()

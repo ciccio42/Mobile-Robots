@@ -119,13 +119,14 @@ def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time
     rospy.loginfo(f"Waiting for result....")
     move_base_client.wait_for_result()
     result = move_base_client.get_state()
- 
+    curr_time = rospy.Time.now().to_sec()
     if result == GoalStatus.SUCCEEDED:
         rospy.loginfo("Waypoint reached")
-        curr_time = rospy.Time.now().to_sec()
         log_file.write(f" ---- Waypoint reached in: {round(curr_time - time, 3)} s")
         return curr_time
-
+    else:
+        log_file.write(f"---- Error: {result}")
+        return curr_time
 def timer_elapsed(event=None):
     # stop the robot
     cmd_vel = Twist()
