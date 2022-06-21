@@ -37,13 +37,13 @@ args, unknown = parser.parse_known_args()
 # Mean initialization error
 initialization_error_mean = 0.0
 # STD DEV initialization error
-initialization_error_std_dev_x = 0 # m
-initialization_error_std_dev_y = 0 # m
-initialization_error_std_dev_yow = 0 # rad
+initialization_error_std_dev_x = 2.0 # m
+initialization_error_std_dev_y = 2.0 # m
+initialization_error_std_dev_yaw = math.pi/4 # rad
 
 # Covariance threshold for initial localization
-COVARIANCE_X_THRESHOLD = 0.5 # m^2
-COVARIANCE_Y_THRESHOLD = 0.5 # m^2
+COVARIANCE_X_THRESHOLD = 2e-2 # m^2
+COVARIANCE_Y_THRESHOLD = 2e-2 # m^2
 COVARIANCE_YAW_THRESHOLD = 0.1 # rad^2
 TIME_LIMIT_FOR_INITIAL_LOCALIZATION = (2*math.pi)*2 # The time required to complete one rotation around the z-axis
 
@@ -64,7 +64,7 @@ def publish_pose_gazebo(service_proxy: rospy.ServiceProxy, wp: list):
     model_state_req.model_name = "turtlebot3_waffle_pi"
 
     # reference frame
-    model_state_req.reference_frame = "map"
+    model_state_req.reference_frame = "world"
 
     # position
     model_state_req.pose.position.x = wp[0]
@@ -81,6 +81,37 @@ def publish_pose_gazebo(service_proxy: rospy.ServiceProxy, wp: list):
     # call service
     service_proxy(model_state_req)
 
+def publish_initial_pose_amcl(initial_pose: PoseWithCovarianceStamped):
+   
+    def initialize_pose(initial_pose: PoseWithCovarianceStamped) -> PoseWithCovarianceStamped:
+        initial_pose.header.stamp = rospy.Time.now()
+        # at the beginning the robot is supposed to be in the starting wp
+        # however the related variance is high, since there is a huge uncertainty at the beginning
+        initial_pose.pose.covariance[0] = initialization_error_std_dev_x
+        initial_pose.pose.covariance[7] = initialization_error_std_dev_y
+        initial_pose.pose.covariance[35] = initialization_error_std_dev_yaw
+        return initial_pose
+   
+    rospy.loginfo("Publishing initial pose....")
+    rospy.loginfo(f"Initial Pose {initial_pose}")
+    if args.run_automatic_initialization_procedure == "True":
+        initial_pose = initialize_pose(initial_pose)
+
+    rospy.loginfo(f"Initial Pose {initial_pose}")
+    initial_pose_pub.publish(initial_pose)
+
+def init_amcl():
+    if rospy.get_param("sim") == True:
+        publish_initial_pose_amcl(initial_pose)     
+        # wait for gazebo service
+        rospy.wait_for_service('/gazebo/set_model_state')
+        gazebo_initial_pose_service_proxy = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+        publish_pose_gazebo(gazebo_initial_pose_service_proxy, waypoints[0])
+        rospy.Rate(0.3).sleep()
+        publish_initial_pose_amcl(initial_pose) 
+    else:
+        publish_initial_pose_amcl(initial_pose) 
+
 def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time):
     goal = utils.create_goal_msg(wp)
     rospy.loginfo(f"Sending goal {goal}")
@@ -94,15 +125,6 @@ def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time
         curr_time = rospy.Time.now().to_sec()
         log_file.write(f" ---- Waypoint reached in: {round(curr_time - time, 3)} s")
         return curr_time
-        #utils.compute_difference_current_pose_desired_pose(wp)
-
-def initialize_pose(initial_pose: PoseWithCovarianceStamped) -> PoseWithCovarianceStamped:
-    # at the beginning the robot is supposed to be in the starting wp
-    # however the related variance is high, since there is a huge uncertainty at the beginning
-    initial_pose.pose.covariance[0] = initialization_error_std_dev_x
-    initial_pose.pose.covariance[7] = initialization_error_std_dev_y
-    initial_pose.pose.covariance[35] = initialization_error_std_dev_yow
-    return initial_pose
 
 def timer_elapsed(event=None):
     # stop the robot
@@ -116,7 +138,6 @@ def timer_elapsed(event=None):
     cmd_vel_pub.publish(cmd_vel)
     global TIME_ELAPSED
     TIME_ELAPSED = True
-
 
 def get_amcl_pose():
     amcl_update_client()
@@ -137,15 +158,15 @@ def rotation_procedure(open_space):
         rate.sleep()
         current_time = rospy.Time.now()
         elapsed_time = (current_time.secs + (current_time.nsecs * 10**-9)) - (start_time.secs + (start_time.nsecs * 10**-9))
-        rospy.logdebug(f"Localization phase - Elapsed time {elapsed_time}")
+        rospy.logdebug(f"Localization phase-\nElapsed time {elapsed_time}")
         cmd_vel_pub.publish(cmd_vel_msg)
         estimated_pose = get_amcl_pose()
         covariance_x = estimated_pose.pose.covariance[0]
         covariance_y = estimated_pose.pose.covariance[7]
         covariance_yaw = estimated_pose.pose.covariance[35]
             
-        if ((covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD) and open_space == False)  or elapsed_time >= TIME_LIMIT_FOR_INITIAL_LOCALIZATION:
-            if (covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD):
+        if ((abs(covariance_x) < COVARIANCE_X_THRESHOLD and abs(covariance_y) < COVARIANCE_Y_THRESHOLD) and open_space == False)  or elapsed_time >= TIME_LIMIT_FOR_INITIAL_LOCALIZATION:
+            if (abs(covariance_x) < COVARIANCE_X_THRESHOLD and abs(covariance_y) < COVARIANCE_Y_THRESHOLD):
                 rospy.loginfo("Covariance under threshold")
             else:
                 rospy.loginfo("Rotating Time elapsed")
@@ -153,39 +174,39 @@ def rotation_procedure(open_space):
             cmd_vel_pub.publish(cmd_vel_msg)
             break
 
-
-def automatic_initialization_procedure():
-    
+def automatic_localization_precedure():
     """Perform the initial localization
     """
-    
-    # Start by rotating
-    time_elapsed = False
-    
-    # count number of particles
-    particle_cloud = rospy.wait_for_message("/particlecloud", PoseArray)
-    rospy.loginfo(f"Number of particles {len(particle_cloud.poses)}")
-    localization = False
-
-    rotation_procedure(False)
-
-    estimated_pose = get_amcl_pose()
-
-    rospy.loginfo (f"Estimated pose: {estimated_pose}")
-    covariance_x = estimated_pose.pose.covariance[0]
-    covariance_y = estimated_pose.pose.covariance[7]
-    covariance_yow = estimated_pose.pose.covariance[35]
-
-    if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
-        localization = True
-        return True
-    else:
+    def automatic_localization_procedure_step_1():
+        """First Step Simple Rotation
+        """
+        # Start by rotating
+        time_elapsed = False
+        
+        # count number of particles
+        particle_cloud = rospy.wait_for_message("/particlecloud", PoseArray)
+        rospy.loginfo(f"Number of particles {len(particle_cloud.poses)}")
         localization = False
-        rospy.loginfo("Localization not completed")
 
+        rotation_procedure(False)
 
-    if localization == False:
-        #input("Press any key to start to move into open space")
+        estimated_pose = get_amcl_pose()
+
+        rospy.loginfo (f"Estimated pose:\n{estimated_pose}")
+        covariance_x = estimated_pose.pose.covariance[0]
+        covariance_y = estimated_pose.pose.covariance[7]
+        covariance_yaw = estimated_pose.pose.covariance[35]
+
+        if abs(covariance_x) < COVARIANCE_X_THRESHOLD and abs(covariance_y) < COVARIANCE_Y_THRESHOLD and abs(covariance_yaw) < COVARIANCE_YAW_THRESHOLD:
+            localization = True
+            return True
+        else:
+            localization = False
+            rospy.loginfo("Localization not completed")
+            return False    
+    
+    def automatic_localization_procedure_step_2():
+        input("Press any key to start to move into open space")
         while True:
             laser_values = utils.get_laser_scan("/scan").ranges
 
@@ -193,7 +214,7 @@ def automatic_initialization_procedure():
             max_measure = max(laser_values)
             degree = laser_values.index(max_measure)
             rospy.loginfo (f"max: {max_measure}, degree: {degree}")
-            #input("press")
+            input("press")
             # rotate to max measure 
             omega = math.radians(degree)/ TIME
             rospy.loginfo(f"Omega: {omega}")
@@ -227,7 +248,7 @@ def automatic_initialization_procedure():
             min_measure = min(neighbourhood)
             degree = neighbourhood.index(min_measure)
             rospy.loginfo (f"min: {min_measure}, degree: {degree}")
-            #input("press2")
+            input("press2")
             if min_measure == math.inf:
                 min_measure = 3.15
 
@@ -241,19 +262,25 @@ def automatic_initialization_procedure():
             covariance_y = estimated_pose.pose.covariance[7]
             covariance_yow = estimated_pose.pose.covariance[35]
             if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
-                #input ("Localization completed, press any key to reach next waypoint")
+                input ("Localization completed, press any key to reach next waypoint")
                 return True
-                
+    
+    if automatic_localization_procedure_step_1() == False:
+        return automatic_localization_procedure_step_2()
+    else:
+        return True
+
 def align_with_source_wp(theta):
     # reach wp orientation
-    estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
+    estimated_pose = get_amcl_pose()
     _,_, y = tf.transformations.euler_from_quaternion([estimated_pose.pose.pose.orientation.x, 
                                                        estimated_pose.pose.pose.orientation.y, 
                                                        estimated_pose.pose.pose.orientation.z, 
                                                        estimated_pose.pose.pose.orientation.w])
 
     delta_theta = (theta-y)
-    rospy.loginfo("\nAlignment with source waypoint orientation: theta {}".format(delta_theta))
+    rospy.loginfo(f"Source wp:\n{theta}\nY:\n{y}")
+    rospy.loginfo("\nAlignment with source waypoint orientation:\ntheta {}".format(delta_theta))
     omega = theta / TIME
     cmd_vel = Twist()
     cmd_vel.linear.x = 0.0
@@ -263,7 +290,6 @@ def align_with_source_wp(theta):
     cmd_vel.angular.y = 0.0
     cmd_vel.angular.z = omega
     cmd_vel_pub.publish(cmd_vel)
-
     rospy.Timer(rospy.Duration(secs=TIME),timer_elapsed, oneshot=True)
     global TIME_ELAPSED
     TIME_ELAPSED = False
@@ -274,7 +300,6 @@ def align_with_source_wp(theta):
 if __name__ == '__main__':
 
     rospy.init_node("navigation_node")
-    rate = rospy.Rate(1)
     
     # complete the name of the path file
     path_file_path = path_file_path + args.path_file_number + ".csv"
@@ -292,7 +317,7 @@ if __name__ == '__main__':
     log_file = open(str(directory)+"/"+str(name)+f"_path_{args.path_file_number}"+".txt","w")
 
     # initialize the robot pose
-    initial_pose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=1)
+    initial_pose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=100)
 
     # marker array publisher
     markers_pub = rospy.Publisher("/visualization_marker_array", MarkerArray, queue_size=100)
@@ -317,37 +342,26 @@ if __name__ == '__main__':
 
     # get the path waypoints
     waypoints, initial_pose = utils.read_csv_file(path_file_path)
+    rospy.loginfo(f"Waypoints:\n{waypoints}")
+    rospy.loginfo("###########")
+    rate = rospy.Rate(1)
     # publish waypoint markers
     markers = utils.create_markers(waypoints)
-    # log_file.close()
-    # sys.exit()
-    rospy.loginfo("Publishing initial pose....")
-    rospy.loginfo(f"Initial Pose {initial_pose}")
-    if args.run_automatic_initialization_procedure == "True":
-        initial_pose = initialize_pose(initial_pose)
-
-    rospy.loginfo(f"Initial Pose {initial_pose}")
-    initial_pose_pub.publish(initial_pose)
-    rospy.loginfo(f"Waypoints: {waypoints}")
-    rospy.loginfo("###########")
-    
-    if rospy.get_param("sim") == True:
-        # wait for gazebo service
-        rospy.wait_for_service('/gazebo/set_model_state')
-        gazebo_initial_pose_service_proxy = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
-        publish_pose_gazebo(gazebo_initial_pose_service_proxy, waypoints[0])
-
     for i in range(5):
         markers_pub.publish(markers)
         rate.sleep()
 
+    init_amcl()
+    
     if args.run_automatic_initialization_procedure == "True":
-        #input("Press any key to start the initialization of localization:")
-        automatic_initialization_procedure()
-
-        # check if the robot have reached the first wp
-        estimated_pose = rospy.wait_for_message("/amcl_pose", PoseWithCovarianceStamped)
-        rospy.loginfo (f"Estimated Pose: {estimated_pose}")
+        
+        input("Press any key to start the localization of localization:")
+        if automatic_localization_precedure() == True:
+            rospy.loginfo("Initial localization has reached convergence")
+            rospy.Rate(0.2).sleep()
+        
+        # check if the robot has reached the first wp
+        estimated_pose = get_amcl_pose()
         wp_x = waypoints[0][0]
         wp_y = waypoints[0][1]
 
@@ -358,31 +372,20 @@ if __name__ == '__main__':
             align_with_source_wp(waypoints[0][2])
         else:
             _ = go_to_next_wp(wp=waypoints[0], move_base_client=move_base_client, time = 0)
-        #_ = go_to_next_wp(wp=waypoints[0], move_base_client=move_base_client, time = 0)
 
-    #rate.sleep()
-    
-    #input("Press any key to start the navigation:")
+    input("Press any key to start the navigation:")
     log_file.write(f"Start Simulation. \nStart point: {waypoints[0]} - Goal point: {waypoints[-1]}")
     curr_time = rospy.Time.now().secs + (rospy.Time.now().nsecs * 10**-9)
     start_time = curr_time
     log_file.write(f"\n\n\nStart time: {curr_time}")
     for i, wp in enumerate(waypoints[1:]):
         clear_costmaps_client()
-        rospy.loginfo(f"Waypoint number {i}\n{wp}")
+        rospy.loginfo(f"Waypoint number:\n{i}\n{wp}")
         log_file.write(f"\n\nWaypoint number: {i}\n{wp}")
         curr_time = go_to_next_wp(wp=wp, move_base_client=move_base_client, time = curr_time)
-        #input("Press any key to continue:")
+        input("Press any key to continue:")
         rate.sleep()
         
     minutes, sec = divmod(int(curr_time) - start_time, 60)
     log_file.write(f"\n\nGoal reached in: {minutes} m {int(sec)} s")
     log_file.close()
-
-
-    # os.system("rosnode kill -a")
-    
-    """
-    while(not rospy.is_shutdown()):
-        rate.sleep()
-    """

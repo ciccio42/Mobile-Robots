@@ -65,12 +65,12 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
             diagonal_index = (i*6)+i
             if i < 3:
                 if i == 2:
-                    pose_with_covariance.covariance[diagonal_index] = 1000000000000.0 # since the robot is planar and the z term is not estimated
+                    pose_with_covariance.covariance[diagonal_index] = 1000000000.0 # since the robot is planar and the z term is not estimated
                 else:
                     pose_with_covariance.covariance[diagonal_index] = 10**-5 # the initial pose is supposed known 
             else:
                 if i == 3 or i == 4:
-                    pose_with_covariance.covariance[diagonal_index] = 1000000000000.0 # since the robot is planar and the roll and pitch are not estimated
+                    pose_with_covariance.covariance[diagonal_index] = 1000000000.0 # since the robot is planar and the roll and pitch are not estimated
                 else:
                     pose_with_covariance.covariance[diagonal_index] = 0.001 # the initial orientation is supposed known        
         
@@ -106,7 +106,6 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
         waypoints[-1][2] = wp_angle
         waypoints.append(goal_wp)
         waypoints[-1][2] = wp_angle
-        rospy.loginfo(waypoints)
         # get the initial pose
         initial_pose = get_initial_pose_csv(waypoints[0])
     return waypoints, initial_pose
