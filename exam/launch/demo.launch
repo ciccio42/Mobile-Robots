@@ -45,7 +45,7 @@
       
     </include>
 
-  <node name="line_extractor" pkg="laser_line_extraction" type="line_extraction_node">
+  <!-- <node name="line_extractor" pkg="laser_line_extraction" type="line_extraction_node">
     <param name="~frequency" value="30.0" />
     <param name="~frame_id" value="base_footprint" />
     <param name="~scan_topic" value="scan" />
@@ -61,7 +61,7 @@
     <param name="~min_split_dist" value="0.04" />
     <param name="~outlier_dist" value="0.06" />
     <param name="~min_line_points" value="3" />
-  </node>
+  </node> -->
 
     <!-- run application node -->
     <node name="navigation_node" pkg="exam" type="main.py" args="-num_path $(arg num_path) -run_aip $(arg run_aip)" output="screen" required="true">
