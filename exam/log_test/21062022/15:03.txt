@@ -14,10 +14,5 @@ Test 11 completed! [2 NavfnROS mpc]
 Test 12 completed! [3 NavfnROS mpc]
 Test 13 completed! [test_1 NavfnROS mpc]
 Test 14 completed! [test_2 NavfnROS mpc]
-Test 15 completed! [1 NavfnROS base]
-Test 16 completed! [2 NavfnROS base]
-Test 17 completed! [3 NavfnROS base]
-Test 18 completed! [test_1 NavfnROS base]
-Test 19 completed! [test_2 NavfnROS base]
 
 All test completed

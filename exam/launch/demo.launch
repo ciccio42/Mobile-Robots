@@ -27,7 +27,7 @@
         <arg name="y_pos" default="$(arg y_pos)"/>
         <arg name="z_pos" default="0.0"/>
         <arg name="yaw" default="$(arg yaw_orientation)"/>
-        <arg name="gui" default="false"/>
+        <arg name="gui" default="true"/>
       </include>
     </group>
 

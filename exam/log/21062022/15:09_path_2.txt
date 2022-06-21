@@ -1,0 +1,22 @@
+Localization Error--> x: 0.03041226059528057 - y: 0.10630082391695339Start Simulation. 
+Start point: [-24.0, -9.5, 1.5707963267948966] - Goal point: [-10.0, 0.0, 3.141592653589793]
+
+
+Start time: 25.176
+
+Waypoint number: 0
+[-24.0, 0.0, 0.0] ---- Waypoint reached in: 40.742 s
+
+Waypoint number: 1
+[0.0, 0.0, -2.3818298987140225] ---- Waypoint reached in: 97.044 s
+
+Waypoint number: 2
+[-10.0, -9.5, 0.4434483364197382] ---- Waypoint reached in: 62.729 s
+
+Waypoint number: 3
+[10.0, 0.0, 3.141592653589793] ---- Waypoint reached in: 100.736 s
+
+Waypoint number: 4
+[-10.0, 0.0, 3.141592653589793] ---- Waypoint reached in: 79.15 s
+
+Goal reached in: 6.0 m 19 s
