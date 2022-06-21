@@ -23,11 +23,30 @@ dict_test = {}
 # dict_test[14] = ["test_1", "NavfnROS", "mpc" ]
 # dict_test[15] = ["test_2", "NavfnROS", "mpc" ]
 
-dict_test[16] = ["1",      "NavfnROS", "base"]
-dict_test[17] = ["2",      "NavfnROS", "base"]
-dict_test[18] = ["3",      "NavfnROS", "base" ]
-dict_test[19] = ["test_1", "NavfnROS", "base" ]
-dict_test[20] = ["test_2", "NavfnROS", "base" ]
+# Global mpc e teb con A*
+dict_test[1] = ["1",      "Global", "mpc"]
+dict_test[2] = ["2",      "Global", "mpc"]
+dict_test[3] = ["3",      "Global", "mpc" ]
+dict_test[4] = ["test_1", "Global", "mpc" ]
+dict_test[5] = ["test_2", "Global", "mpc" ]
+
+dict_test[6] = ["1",      "Global", "teb"]
+dict_test[7] = ["2",      "Global", "teb"]
+dict_test[8] = ["3",      "Global", "teb" ]
+dict_test[9] = ["test_1", "Global", "teb" ]
+dict_test[10] =["test_2", "Global", "teb" ]
+
+# dict_test[11] = ["1",      "NavfnROS", "mpc"]
+# dict_test[12] = ["2",      "NavfnROS", "mpc"]
+# dict_test[13] = ["3",      "NavfnROS", "mpc" ]
+# dict_test[14] = ["test_1", "NavfnROS", "mpc" ]
+# dict_test[15] = ["test_2", "NavfnROS", "mpc" ]
+
+# dict_test[16] = ["1",      "NavfnROS", "base"]
+# dict_test[17] = ["2",      "NavfnROS", "base"]
+# dict_test[18] = ["3",      "NavfnROS", "base" ]
+# dict_test[19] = ["test_1", "NavfnROS", "base" ]
+# dict_test[20] = ["test_2", "NavfnROS", "base" ]
 
 # create log file
 now = datetime.now()
