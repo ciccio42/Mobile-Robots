@@ -1,4 +1,4 @@
-image: /home/ciccio/Desktop/catkin_ws/src/exam/maps/map6.pgm
+image: /home/parallels/ws/src/exam/maps/map6.pgm
 resolution: 0.050000
 origin: [-32.514755, -21.044427, 0.000000]
 negate: 0

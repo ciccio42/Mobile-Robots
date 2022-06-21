@@ -206,7 +206,7 @@ def automatic_localization_precedure():
             return False    
     
     def automatic_localization_procedure_step_2():
-        input("Press any key to start to move into open space")
+        #input("Press any key to start to move into open space")
         while True:
             laser_values = utils.get_laser_scan("/scan").ranges
 
@@ -214,7 +214,7 @@ def automatic_localization_precedure():
             max_measure = max(laser_values)
             degree = laser_values.index(max_measure)
             rospy.loginfo (f"max: {max_measure}, degree: {degree}")
-            input("press")
+            #input("press")
             # rotate to max measure 
             omega = math.radians(degree)/ TIME
             rospy.loginfo(f"Omega: {omega}")
@@ -248,7 +248,7 @@ def automatic_localization_precedure():
             min_measure = min(neighbourhood)
             degree = neighbourhood.index(min_measure)
             rospy.loginfo (f"min: {min_measure}, degree: {degree}")
-            input("press2")
+            #input("press2")
             if min_measure == math.inf:
                 min_measure = 3.15
 
@@ -262,7 +262,7 @@ def automatic_localization_precedure():
             covariance_y = estimated_pose.pose.covariance[7]
             covariance_yow = estimated_pose.pose.covariance[35]
             if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
-                input ("Localization completed, press any key to reach next waypoint")
+                #input ("Localization completed, press any key to reach next waypoint")
                 return True
     
     if automatic_localization_procedure_step_1() == False:
@@ -355,7 +355,7 @@ if __name__ == '__main__':
     
     if args.run_automatic_initialization_procedure == "True":
         
-        input("Press any key to start the localization of localization:")
+        #input("Press any key to start the localization of localization:")
         if automatic_localization_precedure() == True:
             rospy.loginfo("Initial localization has reached convergence")
             rospy.Rate(0.2).sleep()
@@ -367,13 +367,14 @@ if __name__ == '__main__':
 
         diff_x = abs(wp_x - estimated_pose.pose.pose.position.x)
         diff_y = abs(wp_y - estimated_pose.pose.pose.position.y)
+        log_file.write(f"Localization Error--> x: {diff_x} - y: {diff_y}")
         if diff_x < ERROR_X and diff_y < ERROR_Y:
             rospy.loginfo(f"Source reached")
             align_with_source_wp(waypoints[0][2])
         else:
             _ = go_to_next_wp(wp=waypoints[0], move_base_client=move_base_client, time = 0)
 
-    input("Press any key to start the navigation:")
+    #input("Press any key to start the navigation:")
     log_file.write(f"Start Simulation. \nStart point: {waypoints[0]} - Goal point: {waypoints[-1]}")
     curr_time = rospy.Time.now().secs + (rospy.Time.now().nsecs * 10**-9)
     start_time = curr_time
@@ -383,7 +384,7 @@ if __name__ == '__main__':
         rospy.loginfo(f"Waypoint number:\n{i}\n{wp}")
         log_file.write(f"\n\nWaypoint number: {i}\n{wp}")
         curr_time = go_to_next_wp(wp=wp, move_base_client=move_base_client, time = curr_time)
-        input("Press any key to continue:")
+        #input("Press any key to continue:")
         rate.sleep()
         
     minutes, sec = divmod(int(curr_time) - start_time, 60)
