@@ -16,18 +16,20 @@ TebLocalPlannerROS:
     
  # Robot
          
- max_vel_x: 0.4
- max_vel_x_backwards: 0.2
- max_vel_theta: 0.3
- acc_lim_x: 0.5
- acc_lim_theta: 0.5
+ max_vel_x: 0.26
+ max_vel_x_backwards: -0.26
+ max_vel_theta: 1.82
+ max_vel_theta_backwards: -1.82
+ acc_lim_x: 2.5
+ acc_lim_y: 0.0 
+ acc_lim_theta: 0.6
  min_turning_radius: 0.0
  footprint_model: [[-0.205, -0.155], [-0.205, 0.155], [0.077, 0.155], [0.077, -0.155]]
 
  # GoalTolerance
     
- xy_goal_tolerance: 0.2
- yaw_goal_tolerance: 0.1
+ xy_goal_tolerance: 0.05
+ yaw_goal_tolerance: 0.17
  free_goal_vel: False
     
  # Obstacles
