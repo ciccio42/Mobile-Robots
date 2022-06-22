@@ -10,6 +10,7 @@
     
     <arg name="global_planner_param_demo" default="NavfnROS" />
     <arg name="local_planner_param_demo" default="DWA" />
+    <arg name="bag_name" default="record.bag"/>
 
     <!--Parameters-->
     <param name="kalman" type="bool" value="False"/>
@@ -31,6 +32,9 @@
       </include>
     </group>
 
+    <!--Run bag-->
+    <node pkg="rosbag" type="record" name="rosbag" args="-O $(find exam)/$(arg bag_name) -a -x '(.*)/(scan|camera)(.*)'" required="true"/>
+    
     <!--run rviz-->
     <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
       <arg name="map_file" value="$(find exam)/maps/map6.yaml" />
