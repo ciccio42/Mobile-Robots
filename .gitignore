@@ -9,3 +9,4 @@ turtlebot3_simulations
 laser_line_extraction
 mpc_local_planner
 exam/maps/
+exam/bag/
