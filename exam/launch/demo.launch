@@ -31,7 +31,6 @@
       </include>
     </group>
 
-
     <!--run rviz-->
     <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
       <arg name="map_file" value="$(find exam)/maps/map6.yaml" />
