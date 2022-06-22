@@ -342,12 +342,20 @@ def get_laser_scan(laser_scan_topic: str):
             Laser scan topic name
     Returns
     -------
-        laser_scan_msg: sensor_msgs.LaserScan
-            Laser scan message
+        ranges: np.array
+            Array of measured ranges
     """
     laser_scan_msg = rospy.wait_for_message(laser_scan_topic, LaserScan)
 
-    return laser_scan_msg
+    ranges = np.array(laser_scan_msg.ranges)
+    intensities = np.array(laser_scan_msg.intensities)
+
+    for indx, _ in enumerate(ranges):
+        if ranges[indx] == 0.0 and intensities[indx] == 0.0:
+            ranges[indx] = math.inf
+        elif ranges[indx] == 0.0 and intensities[indx] != 0.0:     
+            ranges[indx] = np.NaN
+    return ranges
 
 
 def get_measure_from_scan():

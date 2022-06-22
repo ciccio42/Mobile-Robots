@@ -13,7 +13,7 @@
 
     <!--Parameters-->
     <param name="kalman" type="bool" value="False"/>
-    <param name="sim" type="bool" value="True" />
+    <param name="sim" type="bool" value="$(arg sim)" />
 
     <node pkg="tf" type="static_transform_publisher" 
           name="my_tf" args="-32.514755 -21.044427 0 0 0 0.0 /map /world 30"/>
@@ -27,7 +27,7 @@
         <arg name="y_pos" default="$(arg y_pos)"/>
         <arg name="z_pos" default="0.0"/>
         <arg name="yaw" default="$(arg yaw_orientation)"/>
-        <arg name="gui" default="true"/>
+        <arg name="gui" default="false"/>
       </include>
     </group>
 
