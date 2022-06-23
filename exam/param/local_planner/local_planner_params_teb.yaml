@@ -3,7 +3,7 @@ base_local_planner: teb_local_planner/TebLocalPlannerROS
 TebLocalPlannerROS:
 
  odom_topic: odom
- map_frame: /odom
+ map_frame: /map
     
  # Trajectory
   
@@ -11,18 +11,18 @@ TebLocalPlannerROS:
  dt_ref: 0.3
  dt_hysteresis: 0.1
  global_plan_overwrite_orientation: True
- max_global_plan_lookahead_dist: 3.0
+ max_global_plan_lookahead_dist: 1.5
  feasibility_check_no_poses: 5
     
  # Robot
          
  max_vel_x: 0.26
- max_vel_x_backwards: -0.26
+ max_vel_x_backwards: 0.26
  max_vel_theta: 1.82
- max_vel_theta_backwards: -1.82
+ max_vel_theta_backwards: 1.82
  acc_lim_x: 2.5
  acc_lim_y: 0.0 
- acc_lim_theta: 0.6
+ acc_lim_theta: 3.2
  min_turning_radius: 0.0
  footprint_model: [[-0.205, -0.155], [-0.205, 0.155], [0.077, 0.155], [0.077, -0.155]]
 
@@ -34,7 +34,7 @@ TebLocalPlannerROS:
     
  # Obstacles
     
- min_obstacle_dist: 0.0
+ min_obstacle_dist: 0.25
  include_costmap_obstacles: True
  costmap_obstacles_behind_robot_dist: 1.0
  obstacle_poses_affected: 30

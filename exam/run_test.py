@@ -4,54 +4,30 @@ from datetime import datetime
 
 dict_test = {}
 
-#dict_test[1] = ["1",      "NavfnROS", "DWA"]
-# dict_test[2] = ["2",      "NavfnROS", "DWA"]
-# dict_test[3] = ["3",      "NavfnROS", "DWA" ]
-dict_test[4] = ["test_1", "NavfnROS", "DWA" ]
-# dict_test[5] = ["test_2", "NavfnROS", "DWA" ]
+dict_test[1] = ["1",      "NavfnROS", "DWA"]
+dict_test[2] = ["2",      "NavfnROS", "DWA"]
+dict_test[3] = ["3",      "NavfnROS", "DWA" ]
 
-# dict_test[6] = ["1",      "NavfnROS", "teb"]
-# dict_test[7] = ["2",      "NavfnROS", "teb"]
-# dict_test[8] = ["3",      "NavfnROS", "teb" ]
-dict_test[9] = ["test_1", "NavfnROS", "teb" ]
-# dict_test[10] =["test_2", "NavfnROS", "teb" ]
+dict_test[4] = ["1",      "NavfnROS", "teb"]
+dict_test[5] = ["2",      "NavfnROS", "teb"]
+dict_test[6] = ["3",      "NavfnROS", "teb" ]
 
-# dict_test[11] = ["1",      "NavfnROS", "mpc"]
-# dict_test[12] = ["2",      "NavfnROS", "mpc"]
-# dict_test[13] = ["3",      "NavfnROS", "mpc" ]
-dict_test[14] = ["test_1", "NavfnROS", "mpc" ]
-# dict_test[15] = ["test_2", "NavfnROS", "mpc" ]
+dict_test[7] = ["1",      "NavfnROS", "mpc"]
+dict_test[8] = ["2",      "NavfnROS", "mpc"]
+dict_test[9] = ["3",      "NavfnROS", "mpc" ]
 
-# Global mpc e teb con A*
-# dict_test[16] = ["1",      "Global", "DWA"]
-# dict_test[17] = ["2",      "Global", "DWA"]
-# dict_test[18] = ["3",      "Global", "DWA" ]
-# dict_test[19] = ["test_1", "Global", "DWA" ]
-# dict_test[20] = ["test_2", "Global", "DWA" ]
+#Global DWA, mpc e teb con A*
+# dict_test[10] = ["1",      "Global", "DWA"]
+# dict_test[11] = ["2",      "Global", "DWA"]
+# dict_test[12] = ["3",      "Global", "DWA" ]
 
-# dict_test[21] = ["1",      "Global", "teb"]
-# dict_test[22] = ["2",      "Global", "teb"]
-# dict_test[23] = ["3",      "Global", "teb" ]
-# dict_test[24] = ["test_1", "Global", "teb" ]
-# dict_test[25] =["test_2", "Global", "teb" ]
+# dict_test[13] = ["1",      "Global", "teb"]
+# dict_test[14] = ["2",      "Global", "teb"]
+# dict_test[15] = ["3",      "Global", "teb" ]
 
-# dict_test[26] = ["1",      "Global", "mpc"]
-# dict_test[27] = ["2",      "Global", "mpc"]
-# dict_test[28] = ["3",      "Global", "mpc" ]
-# dict_test[29] = ["test_1", "Global", "mpc" ]
-# dict_test[30] = ["test_2", "Global", "mpc" ]
-
-# dict_test[11] = ["1",      "NavfnROS", "mpc"]
-# dict_test[12] = ["2",      "NavfnROS", "mpc"]
-# dict_test[13] = ["3",      "NavfnROS", "mpc" ]
-# dict_test[14] = ["test_1", "NavfnROS", "mpc" ]
-# dict_test[15] = ["test_2", "NavfnROS", "mpc" ]
-
-# dict_test[16] = ["1",      "NavfnROS", "base"]
-# dict_test[17] = ["2",      "NavfnROS", "base"]
-# dict_test[18] = ["3",      "NavfnROS", "base" ]
-# dict_test[19] = ["test_1", "NavfnROS", "base" ]
-#dict_test[20] = ["test_2", "NavfnROS", "base" ]
+# dict_test[16] = ["1",      "Global", "mpc"]
+# dict_test[17] = ["2",      "Global", "mpc"]
+# dict_test[18] = ["3",      "Global", "mpc" ]
 
 # create log file
 now = datetime.now()

@@ -1,0 +1,21 @@
+
+Test 0 completed! [1 NavfnROS DWA]
+Test 1 completed! [2 NavfnROS DWA]
+Test 2 completed! [3 NavfnROS DWA]
+Test 3 completed! [1 NavfnROS teb]
+Test 4 completed! [2 NavfnROS teb]
+Test 5 completed! [3 NavfnROS teb]
+Test 6 completed! [1 NavfnROS mpc]
+Test 7 completed! [2 NavfnROS mpc]
+Test 8 completed! [3 NavfnROS mpc]
+Test 9 completed! [1 Global DWA]
+Test 10 completed! [2 Global DWA]
+Test 11 completed! [3 Global DWA]
+Test 12 completed! [1 Global teb]
+Test 13 completed! [2 Global teb]
+Test 14 completed! [3 Global teb]
+Test 15 completed! [1 Global mpc]
+Test 16 completed! [2 Global mpc]
+Test 17 completed! [3 Global mpc]
+
+All test completed

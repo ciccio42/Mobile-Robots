@@ -123,10 +123,12 @@ def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time
     if result == GoalStatus.SUCCEEDED:
         rospy.loginfo("Waypoint reached")
         log_file.write(f" ---- Waypoint reached in: {round(curr_time - time, 3)} s")
-        return curr_time
+        return curr_time, True
     else:
         log_file.write(f"---- Error: {result}")
-        return curr_time
+        rospy.logerr(f"Action error {result}")
+        return curr_time, False
+
 def timer_elapsed(event=None):
     # stop the robot
     cmd_vel = Twist()
@@ -148,6 +150,7 @@ def get_amcl_pose():
             return estimated_pose
         except:
             rospy.loginfo("AMCL Pose not updated")
+            return None
 
 def rotation_procedure(open_space):
     cmd_vel_msg = Twist()
@@ -207,7 +210,7 @@ def automatic_localization_precedure():
             return False    
     
     def automatic_localization_procedure_step_2():
-        #input("Press any key to start to move into open space")
+        input("Press any key to start to move into open space")
         while True:
             laser_values = utils.get_laser_scan("/scan")
 
@@ -215,7 +218,7 @@ def automatic_localization_precedure():
             max_measure_indx = np.nanargmax(laser_values)
             max_value = laser_values[max_measure_indx]
             rospy.loginfo (f"max: {max_value}, degree: {max_measure_indx}")
-            #input("press")
+            input("press")
             # rotate to max measure 
             omega = math.radians(max_measure_indx)/ TIME
             rospy.loginfo(f"Omega: {omega}")
@@ -255,12 +258,12 @@ def automatic_localization_precedure():
                 min_value = neighbourhood[min_measure_indx]
                 # min value could be inf or numerical
                 rospy.loginfo (f"min: {min_value}, degree: {min_measure_indx}")
-                #input("press2")
+                input("press2")
                 if min_value == math.inf:
                     min_value = 3.15
 
                 # move to maximum_value/2
-                utils.trapezoidal_motion(cmd_vel_pub, (min_value/2))
+                utils.trapezoidal_motion(cmd_vel_pub, (min_value-0.30))
             except ValueError:
                 # all nans
                 # do nothing
@@ -274,7 +277,7 @@ def automatic_localization_precedure():
             covariance_y = estimated_pose.pose.covariance[7]
             covariance_yow = estimated_pose.pose.covariance[35]
             if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
-                #input ("Localization completed, press any key to reach next waypoint")
+                input ("Localization completed, press any key to reach next waypoint")
                 return True
     
     if automatic_localization_procedure_step_1() == False:
@@ -307,7 +310,10 @@ def align_with_source_wp(theta):
     global TIME_ELAPSED
     TIME_ELAPSED = False
     while not TIME_ELAPSED:
+        cmd_vel_pub.publish(cmd_vel)
         pass
+    cmd_vel.angular.z = 0.0
+    cmd_vel_pub.publish(cmd_vel)
     rospy.loginfo ("Alignment Completed")
 
 if __name__ == '__main__':
@@ -368,7 +374,7 @@ if __name__ == '__main__':
     
     if args.run_automatic_initialization_procedure == "True":
         
-        #input("Press any key to start the localization of localization:")
+        input("Press any key to start the localization of localization:")
         if automatic_localization_precedure() == True:
             rospy.loginfo("Initial localization has reached convergence")
             rospy.Rate(0.2).sleep()
@@ -385,9 +391,9 @@ if __name__ == '__main__':
             rospy.loginfo(f"Source reached")
             align_with_source_wp(waypoints[0][2])
         else:
-            _ = go_to_next_wp(wp=waypoints[0], move_base_client=move_base_client, time = 0)
+            _, _ = go_to_next_wp(wp=waypoints[0], move_base_client=move_base_client, time = 0)
 
-    #input("Press any key to start the navigation:")
+    input("Press any key to start the navigation:")
     log_file.write(f"Start Simulation. \nStart point: {waypoints[0]} - Goal point: {waypoints[-1]}")
     curr_time = rospy.Time.now().secs + (rospy.Time.now().nsecs * 10**-9)
     start_time = curr_time
@@ -396,8 +402,11 @@ if __name__ == '__main__':
         clear_costmaps_client()
         rospy.loginfo(f"Waypoint number:\n{i}\n{wp}")
         log_file.write(f"\n\nWaypoint number: {i}\n{wp}")
-        curr_time = go_to_next_wp(wp=wp, move_base_client=move_base_client, time = curr_time)
-        #input("Press any key to continue:")
+        curr_time, res = go_to_next_wp(wp=wp, move_base_client=move_base_client, time = curr_time)
+        if res == False:
+            rospy.logerr("Go to next wp failed. EXIT")
+            break
+        # input("Press any key to continue:")
         rate.sleep()
         
     minutes, sec = divmod(int(curr_time) - start_time, 60)

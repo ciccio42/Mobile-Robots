@@ -4,6 +4,7 @@ from visualization_msgs.msg import MarkerArray, Marker
 from geometry_msgs.msg import Pose, Twist, PoseStamped, PoseWithCovarianceStamped, PoseWithCovariance
 from move_base_msgs.msg import MoveBaseActionGoal, MoveBaseGoal
 from sensor_msgs.msg import LaserScan
+from nav_msgs.msg import OccupancyGrid
 from tf import TransformListener
 from actionlib_msgs.msg import GoalID
 import tf
@@ -78,11 +79,98 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
         return pose_stamped_with_covariance
 
     def compute_wp_orientation(current_wp:list, next_wp:list) -> float:
-        # compute the difference vector between the current and next wp
+        """Compute the orientation to give to the current waypoint with respect to the next waypoint
+        
+        Parameters
+        ----------
+            current_wp: list
+                Current waypoint
+            next_wp: list
+                Next waypoint
+        Returns
+        -------
+            orientation: float
+        """          
+        """# compute the difference vector between the current and next wp
         diff_vector = np.subtract(np.array(next_wp), np.array(current_wp))
         # compute the orientation between the current wp and the next one
-        return np.arctan2(diff_vector[1], diff_vector[0])
-    
+        return np.arctan2(diff_vector[1], diff_vector[0])"""
+
+        def convert_from_cartesian_coordinate_to_pixel(cartesian_coordinates:list, map: OccupancyGrid):
+            """Convert Cartesian point (x,y) in pixel point (u,v)
+            Parameters
+            ----------
+                cartesian_coordinate: list
+                    Cartesian coordinate
+            Returns
+            -------
+
+            """ 
+            origin_pose = map.info.origin
+            A_world_map = np.identity(3)
+            A_world_map[0][2] = - origin_pose.position.x
+            A_world_map[1][2] = - origin_pose.position.y
+            # convert cartesian coordinate with respect to world frame (cell (0,0))
+            cartesian_coordinates_map = np.array([[cartesian_coordinates[0], cartesian_coordinates[1], 1]]).transpose()
+            cartesian_coordinates_world = np.matmul(A_world_map, cartesian_coordinates_map)
+            coordinates_world_px = np.array([int(cartesian_coordinates_world[0][0]/map.info.resolution), 
+                                             int(cartesian_coordinates_world[1][0]/map.info.resolution)])
+            return coordinates_world_px
+
+        def check_obstacles(current_wp : list, next_wp : list, axis = 'y'):
+            # read the map
+            map = rospy.wait_for_message("/map", OccupancyGrid)
+            # compute the wp pixel
+            current_px = convert_from_cartesian_coordinate_to_pixel(current_wp, map)
+            next_px  = convert_from_cartesian_coordinate_to_pixel(next_wp, map)
+            rospy.loginfo(f"Aligned pixels {current_px}, {next_px}")
+
+            map_data = np.reshape(np.array(map.data), (map.info.height, map.info.width))
+            rospy.loginfo(f"Map shape: {np.shape(map_data)}")
+            if axis == 'y':
+                rospy.loginfo(f"{current_px[1]} - {next_px[1]}")
+                map_slice = None
+                if current_px[1] > next_px[1]:
+                    map_slice = map_data[int(next_px[1]):int(current_px[1]), int(current_px[0])]
+                elif current_px[1] < next_px[1]:
+                    map_slice = map_data[int(current_px[1]):int(next_px[1]), int(current_px[0])]
+                for px in map_slice:
+                    if px > 60:
+                        return True
+                return False
+
+        # get the x value
+        x_current = current_wp[0]
+        x_next = next_wp[0]
+        y_current = current_wp[1]
+        y_next = next_wp[1]
+        
+        orientation = None
+        if (x_next <= x_current + 0.15) and (x_next >= x_current - 0.15):
+            rospy.loginfo(f"Current wp {current_wp} - Next wp {next_wp}")
+            if check_obstacles(current_wp=current_wp, next_wp=next_wp):
+                # the waypoints are separed by an obstacle
+                rospy.loginfo("Obstacle detected")
+                orientation = math.pi
+            else:
+                # the waypoints are connected
+                rospy.loginfo("Obstacle not detected")
+                if y_next > y_current:
+                    orientation = math.pi/2
+                elif y_next < y_current:
+                    orientation = -math.pi/2
+
+        elif x_next > x_current:
+            # the next wp is above the current wp
+            # set the orientation to zero
+            orientation = 0.0
+        elif x_next < x_current:
+            # the next wp is above the current wp
+            # set the orientation to zero
+            orientation = math.pi
+
+        return orientation
+
     previous_wp = []
     with open(path_file) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=' ')
@@ -160,7 +248,7 @@ def create_markers(waypoints):
         marker.header.frame_id = "map"
         
         # marker field
-        marker.type = Marker.SPHERE
+        marker.type = Marker.ARROW
         marker.action = Marker.ADD
         #---- define marker pose ----#
         # position 
@@ -168,11 +256,15 @@ def create_markers(waypoints):
         marker.pose.position.y = waypoints[i][1]
         marker.pose.position.z = 0.5
         # pose
-        marker.pose.orientation.w = 1
+        orientation = tf.transformations.quaternion_about_axis(waypoints[i][2], (0,0,1))
+        marker.pose.orientation.x = orientation[0]
+        marker.pose.orientation.y = orientation[1]
+        marker.pose.orientation.z = orientation[2]
+        marker.pose.orientation.w = orientation[3]
 
         marker.color.r, marker.color.g, marker.color.b = (0, 1, 0)
         marker.color.a = 1
-        marker.scale.x, marker.scale.y, marker.scale.z = (0.1, 0.1, 0.1)
+        marker.scale.x, marker.scale.y, marker.scale.z = (0.5, 0.1, 0.1)
         marker_array.markers.append(marker)
 
     # set markers id
