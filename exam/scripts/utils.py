@@ -153,11 +153,109 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
                 else:
                     map_slice = col_slice[int(current_px[1]):int(next_px[1])+1, :]
                 
-                for i in range(np.shape(map_slice)[0]):
-                    for j in range(np.shape(map_slice)[1]):
-                        if map_slice[i][j] > 60:
-                            return True
-                return False
+                row = np.shape(map_slice)[0]
+                col = np.shape(map_slice)[1]
+                
+                n = min (row, col)
+
+                if current_px[0] < next_px[0] and current_px[1]<next_px[1]:
+                    #top-left
+                    # check submatrix diagonal 
+                    for i in range(n):
+                        if map_slice[i][i] > 60:
+                            rospy.loginfo("\n######### Ostacolo nella diagonale")
+                            return True 
+
+                    # check the remaining path
+                    if row > col:
+                        for i in range (row-col):
+                            if map_slice[i + col -1][col-1] > 60:
+                                rospy.loginfo("\n######### Ostacolo 1")
+                                return True 
+                    else:
+                        for i in range (col-row):
+                            if map_slice[row-1][row+i-1] > 60:
+                                rospy.loginfo("\n######### Ostacolo 2")
+                                return True 
+
+
+                elif current_px[0] > next_px[0] and current_px[1]<next_px[1]:
+                    #top-right
+                    # check submatrix diagonal 
+                    
+                    if row > col:
+                        i = 0
+                        for j in range(col-1, -1, -1):
+                            if map_slice[i][j] > 60:
+                                rospy.loginfo("\n######### Ostacolo 2")
+                                return True 
+                            i = i + 1 
+                        for i in range (row-col, row):
+                            if map_slice[i][0] > 60:
+                                rospy.loginfo("\n######### Ostacolo 2")
+                                return True 
+                    else:
+                        i = 0
+                        for j in range(col-1, n-1, -1):
+                            if map_slice[i][j] > 60:
+                                rospy.loginfo("\n######### Ostacolo 2")
+                                return True 
+                            i = i + 1 
+                        for i in range (col-row, 0, -1):
+                            if map_slice[row-1][i-1] > 60:
+                                rospy.loginfo("\n######### Ostacolo 2")
+                                return True 
+
+
+                elif current_px[0] > next_px[0] and current_px[1]>next_px[1]:
+                    #bottom-right
+                    for i in range(n):
+                         if map_slice[row-1-i][col-1-i] > 60:
+                                rospy.loginfo("\n######### Ostacolo 2")
+                                return True 
+                    
+                        
+                    if row > col:
+                        for i in range(row-col, -1, -1):
+                             if map_slice[row-col-i][0] > 60:
+                                rospy.loginfo("\n######### Ostacolo 2")
+                                return True 
+                    else:
+                        for i in range (col-row-1, -1, -1):
+                         if map_slice[0][i]> 60:
+                                rospy.loginfo("\n######### Ostacolo 2")
+                                return True 
+                        
+
+            
+                elif current_px[0] < next_px[0] and current_px[1]>next_px[1]:
+                    #bottom-left
+                    for i in range (n):
+                        if map_slice[row-i-1][i] > 60:
+                            rospy.loginfo("\n######### Ostacolo 2")
+                            return True 
+                    if row > col:
+                        for i in range (row-col-1, -1, -1):
+                            if map_slice[i][col-1] > 60:
+                                rospy.loginfo("\n######### Ostacolo 2")
+                                return True 
+                    else:
+                        for i in range (col-row-1, col, 1) > 60:
+                            if map_slice[0][i]:
+                                rospy.loginfo("\n######### Ostacolo 2")
+                                return True 
+                        
+
+                                    
+                
+                rospy.loginfo("\n######### Nessun Ostacolo")
+                
+
+                # for i in range(np.shape(map_slice)[0]):
+                #     for j in range(np.shape(map_slice)[1]):
+                #         if map_slice[i][j] > 60:
+                #             return True
+                # return False
 
         # get the x value
         x_current = current_wp[0]
