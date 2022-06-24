@@ -7,6 +7,7 @@ Panels:
         - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
+        - /Global Map1
         - /Global Map1/Costmap1
         - /Global Map1/Planner1
         - /Local Map1
@@ -284,7 +285,7 @@ Visualization Manager:
         - Alpha: 1
           Buffer Length: 1
           Class: rviz/Path
-          Color: 255; 0; 0
+          Color: 204; 0; 0
           Enabled: true
           Head Diameter: 0.30000001192092896
           Head Length: 0.20000000298023224
@@ -302,7 +303,7 @@ Visualization Manager:
           Radius: 0.029999999329447746
           Shaft Diameter: 0.10000000149011612
           Shaft Length: 0.10000000149011612
-          Topic: /move_base/DWAPlannerROS/global_plan
+          Topic: /move_base/GlobalPlanner/plan
           Unreliable: false
           Value: true
       Enabled: true
@@ -486,7 +487,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 26.131433486938477
+      Distance: 14.121017456054688
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -494,17 +495,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 1.5729042291641235
-        Y: -6.566354751586914
-        Z: 2.069719076156616
+        X: -14.263294219970703
+        Y: -9.67000961303711
+        Z: 1.5045846700668335
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.2697967290878296
+      Pitch: 1.3447966575622559
       Target Frame: <Fixed Frame>
-      Yaw: 4.738176345825195
+      Yaw: 4.693175792694092
     Saved: ~
 Window Geometry:
   Displays:

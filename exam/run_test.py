@@ -8,9 +8,9 @@ dict_test[1] = ["1",      "NavfnROS", "DWA"]
 dict_test[2] = ["2",      "NavfnROS", "DWA"]
 dict_test[3] = ["3",      "NavfnROS", "DWA" ]
 
-dict_test[4] = ["1",      "NavfnROS", "teb"]
-dict_test[5] = ["2",      "NavfnROS", "teb"]
-dict_test[6] = ["3",      "NavfnROS", "teb" ]
+# dict_test[4] = ["1",      "NavfnROS", "teb"]
+# dict_test[5] = ["2",      "NavfnROS", "teb"]
+# dict_test[6] = ["3",      "NavfnROS", "teb" ]
 
 # dict_test[7] = ["1",      "NavfnROS", "mpc"]
 # dict_test[8] = ["2",      "NavfnROS", "mpc"]
