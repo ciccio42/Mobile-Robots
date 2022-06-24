@@ -104,7 +104,8 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
                     Cartesian coordinate
             Returns
             -------
-
+                coordinates_world_px: np.array
+                    Coordinate of point in pixel (row,col)
             """ 
             origin_pose = map.info.origin
             A_world_map = np.identity(3)
@@ -123,20 +124,39 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
             # compute the wp pixel
             current_px = convert_from_cartesian_coordinate_to_pixel(current_wp, map)
             next_px  = convert_from_cartesian_coordinate_to_pixel(next_wp, map)
-            rospy.loginfo(f"Aligned pixels {current_px}, {next_px}")
-
+            
             map_data = np.reshape(np.array(map.data), (map.info.height, map.info.width))
-            rospy.loginfo(f"Map shape: {np.shape(map_data)}")
+            rospy.logdebug(f"Map shape: {np.shape(map_data)}")
             if axis == 'y':
+                rospy.loginfo(f"Aligned pixels {current_px}, {next_px}")
                 rospy.loginfo(f"{current_px[1]} - {next_px[1]}")
                 map_slice = None
                 if current_px[1] > next_px[1]:
-                    map_slice = map_data[int(next_px[1]):int(current_px[1]), int(current_px[0])]
+                    map_slice = map_data[int(next_px[1]):int(current_px[1])+1, int(current_px[0])]
                 elif current_px[1] < next_px[1]:
-                    map_slice = map_data[int(current_px[1]):int(next_px[1]), int(current_px[0])]
+                    map_slice = map_data[int(current_px[1]):int(next_px[1])+1, int(current_px[0])]
                 for px in map_slice:
                     if px > 60:
                         return True
+                return False            
+            elif axis == 'xy':
+                # check for obstacle in submatrix with coordinates current_px and next_px
+                map_slice = None
+                rospy.loginfo(f"Map slice over {current_px} - {next_px}")
+                if current_px[0] > next_px[0]:
+                    col_slice = map_data[:, int(next_px[0]):int(current_px[0])+1]
+                else:
+                    col_slice = map_data[:, int(current_px[0]):int(next_px[0])+1]
+                
+                if current_px[1] > next_px[1]:
+                    map_slice = col_slice[int(next_px[1]):int(current_px[1])+1, :]
+                else:
+                    map_slice = col_slice[int(current_px[1]):int(next_px[1])+1, :]
+                
+                for i in range(np.shape(map_slice)[0]):
+                    for j in range(np.shape(map_slice)[1]):
+                        if map_slice[i][j] > 60:
+                            return True
                 return False
 
         # get the x value
@@ -146,9 +166,13 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
         y_next = next_wp[1]
         
         orientation = None
+        # check alignment along x-axis, in order to avoid alignment when there is an obstacle
+        rospy.loginfo(f"Current wp {current_wp} - Next wp {next_wp}")
         if (x_next <= x_current + 0.15) and (x_next >= x_current - 0.15):
+            # the waypoints are aligned along the x-direction
+            # check for the presence of an obstacle 
             rospy.loginfo(f"Current wp {current_wp} - Next wp {next_wp}")
-            if check_obstacles(current_wp=current_wp, next_wp=next_wp):
+            if check_obstacles(current_wp=current_wp, next_wp=next_wp, axis='y'):
                 # the waypoints are separed by an obstacle
                 rospy.loginfo("Obstacle detected")
                 orientation = math.pi
@@ -159,15 +183,21 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
                     orientation = math.pi/2
                 elif y_next < y_current:
                     orientation = -math.pi/2
-
-        elif x_next > x_current:
-            # the next wp is above the current wp
-            # set the orientation to zero
-            orientation = 0.0
-        elif x_next < x_current:
-            # the next wp is above the current wp
-            # set the orientation to zero
-            orientation = math.pi
+        elif (x_next > x_current) or (x_next < x_current):
+            if check_obstacles(current_wp=current_wp, next_wp=next_wp, axis='xy'):          
+                if (x_next > x_current):
+                    # the next wp is above the current wp
+                    # set the orientation to zero
+                    orientation = 0.0
+                elif (x_next < x_current):
+                    # the next wp is above the current wp
+                    # set the orientation to zero
+                    orientation = math.pi
+            else:
+                # the points are connected
+                # compute the difference vector between the current and next wp
+                diff_vector = np.subtract(np.array(next_wp), np.array(current_wp))
+                orientation = np.arctan2(diff_vector[1], diff_vector[0])
 
         return orientation
 
