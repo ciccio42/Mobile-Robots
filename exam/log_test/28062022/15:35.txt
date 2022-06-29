@@ -1,0 +1,6 @@
+
+Test 0 completed! [1 NavfnROS_navguide teb_acc_1_9_forward_drive_200]
+Test 1 completed! [2 NavfnROS_navguide teb_acc_1_9_forward_drive_200]
+Test 2 completed! [3 NavfnROS_navguide teb_acc_1_9_forward_drive_200]
+
+All test completed

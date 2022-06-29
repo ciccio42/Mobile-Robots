@@ -552,7 +552,6 @@ def covert_laser_scan_to_frame(tf_listener: tf.listener , measure_base_scan: np.
     measaure_cartesian_target = np.array(measaure_cartesian_target)
     return measaure_cartesian_target
 
-
 def get_laser_scan(laser_scan_topic: str):
     """Get the measure from laser scan
     
@@ -576,7 +575,6 @@ def get_laser_scan(laser_scan_topic: str):
         elif ranges[indx] == 0.0 and intensities[indx] != 0.0:     
             ranges[indx] = np.NaN
     return ranges
-
 
 def get_measure_from_scan():
     tf_listener = TransformListener()

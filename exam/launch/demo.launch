@@ -33,8 +33,9 @@
     </group>
 
     <!--Run bag-->
-    <node pkg="rosbag" type="record" name="rosbag" args="-O $(find exam)/$(arg bag_name) -a -x '(.*)/(scan|camera|particlecloud)(.*)'" required="true"/>
-    
+    <!-- <node pkg="rosbag" type="record" name="rosbag" args="-O $(find exam)/$(arg bag_name) -a -x '(.*)/(scan|camera|particlecloud)(.*)'" required="true"/>
+     -->
+     
     <!--run rviz-->
     <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
       <arg name="map_file" value="$(find exam)/maps/map6.yaml" />

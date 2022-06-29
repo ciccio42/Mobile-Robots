@@ -1,0 +1,12 @@
+
+Test 0 completed! [1 Global_A*_default teb]
+Test 1 completed! [2 Global_A*_default teb]
+Test 2 completed! [3 Global_A*_default teb]
+Test 3 completed! [1 Global_A*_navguide teb]
+Test 4 completed! [2 Global_A*_navguide teb]
+Test 5 completed! [3 Global_A*_navguide teb]
+Test 6 completed! [1 Global_dijkstra_navguide teb]
+Test 7 completed! [2 Global_dijkstra_navguide teb]
+Test 8 completed! [3 Global_dijkstra_navguide teb]
+
+All test completed
