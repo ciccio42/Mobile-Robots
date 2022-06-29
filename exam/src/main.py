@@ -181,23 +181,17 @@ def rotation_procedure(open_space):
             break
 
 def automatic_localization_precedure():
-    """Perform the initial localization
+    """Perform the initial localization procedure, at the start-up
     """
-    def automatic_localization_procedure_step_1():
-        """First Step Simple Rotation
+
+    def check_estimated_pose_variance():
+        """Check whether the estimated pose covariance is under a certain threshold
+        Returns
+        -------
+            result: bool
+                True, if the estimated pose covariance is under a certain threshold, False otherwise
         """
-        # Start by rotating
-        time_elapsed = False
-        
-        # count number of particles
-        particle_cloud = rospy.wait_for_message("/particlecloud", PoseArray)
-        rospy.loginfo(f"Number of particles {len(particle_cloud.poses)}")
-        localization = False
-
-        rotation_procedure(False)
-
         estimated_pose = get_amcl_pose()
-
         rospy.loginfo (f"Estimated pose:\n{estimated_pose}")
         covariance_x = estimated_pose.pose.covariance[0]
         covariance_y = estimated_pose.pose.covariance[7]
@@ -209,13 +203,21 @@ def automatic_localization_precedure():
         else:
             localization = False
             rospy.loginfo("Localization not completed")
-            return False    
-    
-    def automatic_localization_procedure_step_2():
+            return False  
+                        
+    def automatic_localization_procedure_step_1():
+        """Locating procedure that moves the robot in the direction of the maximum distance read by the laser scan.
+           The displacement is equal to the minimum distance in the neighourhood of the maximum.
+        
+        Returns
+        -------
+            result: bool
+                True, if the estimated pose covariance is under a certain threshold, False otherwise
+        """
+        
         input("Press any key to start to move into open space")
         while True:
             laser_values = utils.get_laser_scan("/scan")
-
             # take the maximum value and the degree
             max_measure_indx = np.nanargmax(laser_values)
             max_value = laser_values[max_measure_indx]
@@ -256,7 +258,7 @@ def automatic_localization_precedure():
                 if min_value == math.inf:
                     min_value = 3.15
 
-                # move to maximum_value/2
+                # move to min_value - security threshold
                 utils.trapezoidal_motion(cmd_vel_pub, (min_value-0.30))
             except ValueError:
                 # all nans
@@ -265,19 +267,13 @@ def automatic_localization_precedure():
 
             rotation_procedure(True)
 
-            # check covariance information 
-            estimated_pose = get_amcl_pose()
-            covariance_x = estimated_pose.pose.covariance[0]
-            covariance_y = estimated_pose.pose.covariance[7]
-            covariance_yow = estimated_pose.pose.covariance[35]
-            if covariance_x < COVARIANCE_X_THRESHOLD and covariance_y < COVARIANCE_Y_THRESHOLD and covariance_yow < COVARIANCE_YAW_THRESHOLD:
+            if check_estimated_pose_variance():
+                # convergence reached
                 input ("Localization completed, press any key to reach next waypoint")
                 return True
     
-    if automatic_localization_procedure_step_1() == False:
-        return automatic_localization_procedure_step_2()
-    else:
-        return True
+    return automatic_localization_procedure_step_1()
+    
 
 def align_with_source_wp(theta):
     # reach wp orientation
