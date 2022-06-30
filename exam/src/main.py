@@ -57,6 +57,18 @@ ERROR_Y = 0.20
 TIME_ELAPSED = False
 
 def publish_pose_gazebo(service_proxy: rospy.ServiceProxy, wp: list):
+    """Publish the initial pose in gazebo
+        
+        Parameters
+        ----------
+            service_proxy: rospy.ServiceProxy
+                Service to call 
+            wp: list
+                Source waypoint
+        Returns
+        -------
+    """          
+        
     # create service message
     model_state_req = ModelState()
 
@@ -82,8 +94,28 @@ def publish_pose_gazebo(service_proxy: rospy.ServiceProxy, wp: list):
     service_proxy(model_state_req)
 
 def publish_initial_pose_amcl(initial_pose: PoseWithCovarianceStamped):
-   
+    """Publish the initial pose for amcl
+        
+        Parameters
+        ----------
+            initial_pose: PoseWithCovarianceStamped
+                Initial pose to publish
+        Returns
+        -------
+    """    
     def initialize_pose(initial_pose: PoseWithCovarianceStamped) -> PoseWithCovarianceStamped:
+        """Initialize the covariance of initial pose
+        
+        Parameters
+        ----------
+            initial_pose: PoseWithCovarianceStamped
+                Initial pose to publish
+            
+        Returns
+        -------
+            PoseWithCovarianceStamped
+                Initial pose with covariance
+        """
         initial_pose.header.stamp = rospy.Time.now()
         # at the beginning the robot is supposed to be in the starting wp
         # however the related variance is high, since there is a huge uncertainty at the beginning
@@ -101,6 +133,14 @@ def publish_initial_pose_amcl(initial_pose: PoseWithCovarianceStamped):
     initial_pose_pub.publish(initial_pose)
 
 def init_amcl():
+    """Initialize amcl with initial pose
+        
+        Parameters
+        ----------
+            
+        Returns
+        -------
+    """
     if rospy.get_param("sim") == True:
         publish_initial_pose_amcl(initial_pose)     
         rospy.Rate(0.3).sleep()
@@ -115,6 +155,24 @@ def init_amcl():
         publish_initial_pose_amcl(initial_pose) 
 
 def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time):
+    """Navigate towards the next wp 
+        
+        Parameters
+        ----------
+            wp: list
+                Waypoint to reach
+            move_base_client: actionlib.SimpleActionClient
+                Move_base client
+            time: rospy.Time.now()
+                Starting time to reach waypoint
+        Returns
+        -------
+            curr_time: rospy.Time.now()
+                Time of arrival 
+            flag: boolean
+                True for waypoint reached, False for failure
+
+    """
     goal = utils.create_goal_msg(wp)
     rospy.loginfo(f"Sending goal {goal}")
     move_base_client.send_goal(goal=goal.goal)
@@ -132,6 +190,13 @@ def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time
         return curr_time, False
 
 def timer_elapsed(event=None):
+    """Funtion to stop the robot after the end of a Timer 
+        
+        Parameters
+        ----------
+        Returns
+        -------
+    """
     # stop the robot
     cmd_vel = Twist()
     cmd_vel.linear.x = 0.0
@@ -155,6 +220,15 @@ def get_amcl_pose():
             return None
 
 def rotation_procedure(open_space):
+    """Function to spin the robot for a set number of seconds 
+        
+        Parameters
+        ----------
+            open_space: boolean
+                Flag to indicate the stage of localization
+        Returns
+        -------
+    """
     cmd_vel_msg = Twist()
     cmd_vel_msg.angular.z = 1.0 # rad/s
     start_time = rospy.Time.now()
@@ -274,8 +348,16 @@ def automatic_localization_precedure():
     
     return automatic_localization_procedure_step_1()
     
-
 def align_with_source_wp(theta):
+    """Function to align the robot to next waypoint
+        
+        Parameters
+        ----------
+            theta: float
+                Angle in radians of next waypoint
+        Returns
+        -------
+    """
     # reach wp orientation
     estimated_pose = get_amcl_pose()
     _,_, y = tf.transformations.euler_from_quaternion([estimated_pose.pose.pose.orientation.x, 

@@ -25,6 +25,17 @@ rho_thrs = 10e-2 # 10 cm
 alpha_thrs = 10e-2 # 0.1
 
 def convert_cartesian_to_polar(p1, p2):
+    """Remove similar lines
+
+    Parameters
+    ----------
+        p1
+        p2
+    Returns
+        ray
+        theta
+    -------
+    """
     # compute the line parameters a,b,c given the points p1 and p2
     # general line equation ax + by + c = 0
     # a = - (p_y2 - p_y1)
@@ -251,7 +262,6 @@ def main(default_file = None):
     
     return 0
     
-
 if __name__ == "__main__":
 
     rospy.init_node("line_extractor_from_map")

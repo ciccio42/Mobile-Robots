@@ -41,9 +41,33 @@ STD_DEV_ORIENTATION_IMU = 0.01
 
 
 def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
+    """Read the csv file of the waypoint
+        
+        Parameters
+        ----------
+            path_file: String
+                Path of csv file
+        Returns
+        -------
+            waypoints: list
+                List of waypoints
+            initial_pose: PoseWithCovarianceStamped
+                Initial pose of the robot 
+    """          
+        
     waypoints = []
 
     def get_initial_pose_csv(wp:list) -> PoseWithCovarianceStamped:
+        """Get the pose for the source waypoint
+        Parameters
+        ----------
+            wp: list
+                Pose of the first waypoint
+        Returns
+        -------
+            initial_pose: PoseWithCovarianceStamped
+                Initial pose of the robot 
+        """  
         pose = [float(wp[0]), float(wp[1]), float(wp[2])]
         pose_stamped_with_covariance = PoseWithCovarianceStamped()
         #---- Header ----#
@@ -119,6 +143,17 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
             return coordinates_world_px
 
         def check_obstacles(current_wp : list, next_wp : list, axis = 'y'):
+            """Compute the orientation of the waypoint based on the map structure 
+        
+            Parameters
+            ----------
+                current_wp: list
+                    Current waypoint 
+                next_wp: list
+                    Next waypoint
+                axis: String  
+            """          
+
             # read the map
             map = rospy.wait_for_message("/map", OccupancyGrid)
             # compute the wp pixel
@@ -325,48 +360,15 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
         # get the initial pose
         initial_pose = get_initial_pose_csv(waypoints[0])
     return waypoints, initial_pose
-                
-def read_configuration_file(path_file):
-    
-    def get_wps(file_reader):
-        # create a sequence of waypoits [x,y,theta], with respect to map
-        waypoints = []
-        for wp in file_reader['waypoints']:
-            waypoints.append(wp)
 
-        return waypoints
-
-    def get_initial_pose(file_reader):
-        pose = file_reader['initial_pose']
-        pose_stamped_with_covariance = PoseWithCovarianceStamped()
-        #---- Header ----#
-        pose_stamped_with_covariance.header.seq = 0
-        rospy.loginfo(rospy.Time.now())
-        pose_stamped_with_covariance.header.stamp = rospy.Time.now()
-        pose_stamped_with_covariance.header.frame_id = "map"
-        #---- Pose With Covariance ----#
-        pose_with_covariance = PoseWithCovariance()
-        pose_with_covariance.pose.position.x = pose[0]
-        pose_with_covariance.pose.position.y = pose[1]
-        pose_with_covariance.pose.position.z = 0.0
-        orientation = tf.transformations.quaternion_from_euler(0.0, 0.0, pose[2])
-        pose_with_covariance.pose.orientation.x = float(orientation[0])
-        pose_with_covariance.pose.orientation.y = float(orientation[1])
-        pose_with_covariance.pose.orientation.z = float(orientation[2])
-        pose_with_covariance.pose.orientation.w = float(orientation[3])
-        pose_with_covariance.covariance = list(np.zeros(36))        
-        pose_stamped_with_covariance.pose = pose_with_covariance
-        return pose_stamped_with_covariance
-
-    with open(path_file, 'r') as f:
-        file_reader = yaml.load(f, Loader=yaml.FullLoader)
-
-
-    waypoints = get_wps(file_reader)
-    initial_pose = get_initial_pose(file_reader=file_reader)
-    return waypoints, initial_pose
-    
 def create_markers(waypoints):
+    """Create markers for waypoints
+        
+        Parameters
+        ----------
+            waypoints: list
+                List of waypoint 
+    """          
     marker_array = MarkerArray()
     marker_array.markers = []
 
@@ -403,6 +405,18 @@ def create_markers(waypoints):
     return marker_array
 
 def create_goal_msg(wp)->MoveBaseActionGoal:
+    """Create goal for Move Base client 
+        
+        Parameters
+        ----------
+            wp: list
+                Current waypoint
+
+        Returns
+        -------
+            move_base_action_goal: MoveBaseActionGoal
+                Goal for Move base client
+    """ 
     stamp = rospy.Time.now()
     #---- GOAL ----#
     move_base_action_goal = MoveBaseActionGoal()
@@ -439,12 +453,30 @@ def create_goal_msg(wp)->MoveBaseActionGoal:
     return move_base_action_goal
 
 def convert_polar_to_cartesian(ray: float, angle: float):
-    
+    """Convert polar cordinate to cartesian
+        
+        Parameters
+        ----------
+            ray: float
+            angle: float
+
+        Returns
+        -------
+            [x,y]: List 
+                Cartesian Cordinate
+    """ 
     x = ray * math.cos(angle)
     y = ray * math.sin(angle)
     return [x,y]
 
 def trapezoidal_motion(cmd_vel_pub: rospy.Publisher,delta):
+    """Implementation of trapezoidal motion for the robot
+        
+        Parameters
+        ----------
+            cmd_vel_pub: rospy.Publisher
+            delta
+    """ 
     t_f = 10.0
     vel_c = 2 * (delta) / t_f
     pos_i = 0
@@ -577,6 +609,13 @@ def get_laser_scan(laser_scan_topic: str):
     return ranges
 
 def get_measure_from_scan():
+    """Convert polar measures of laser scan to cartesian
+    
+    Returns
+    -------
+        measures_cartesian_base_footprint
+            Array of measured ranges with respect to base_footprint
+    """
     tf_listener = TransformListener()
     tf_listener.waitForTransform("/odom", "/imu_link", rospy.Time(), rospy.Duration(20.0))
     initial_measure_polar = get_laser_scan("/scan")

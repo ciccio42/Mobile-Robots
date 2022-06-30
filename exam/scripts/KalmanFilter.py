@@ -202,7 +202,6 @@ class KalmanFilter:
             id += 1
         
         self.predicted_line_markers_pub.publish(marker_array)
-        
 
     def _measurement_prediction(self)->Tuple[List, List]:
         """Compute the expected measures
@@ -507,7 +506,6 @@ class KalmanFilter:
 
     def get_last_state(self) -> Odometry:
         return self.updated_state
-
 
 def time_sync_callback(joint_state: JointState, line_segment_list: LineSegmentList):
     
