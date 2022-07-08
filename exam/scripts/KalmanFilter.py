@@ -32,7 +32,7 @@ STD_DEV = 0.2 # m
 CLIP_ON_VARIATION_MOTION_MODEL = 0.4 # correspond to the 95-th percentile
 K_l = 0.001
 K_r = 0.001
-validation_gate = 3.219 # corresponding to the 90-th percentile of a chi^2 distribution with 2 d.o.f
+validation_gate = 3.219 # corresponding to the 80-th percentile of a chi^2 distribution with 2 d.o.f
 # Robot parameters
 WHEEL_DISTANCE = 0.287 # m
 WHEEL_RADIUS = 0.033 # m
@@ -336,8 +336,8 @@ class KalmanFilter:
         """Perform the preditction step of the Kalman filter
         Parameters
         ----------
-            cmd_vel: list()
-                The command that has been sent to the robot. Linear and angular velocity
+            joint_state: JointState
+                The current joint state, from wich compute delta_s, and delta_theta
         Returns
         -------
         """
@@ -441,7 +441,14 @@ class KalmanFilter:
         """Perform the update step of the Kalman filter
         Parameters
         ----------
+            complete_innovation: np.array
+                Complete innovation matrix
 
+            measured_line_covariance_block_diagonal: np.array
+                Covariance block diagonal matrix of measured lines
+
+            complete_predicted_line_jacobians: np.array
+                Complete jacobian matrix of matched predicted lines
         Returns
         -------
         """

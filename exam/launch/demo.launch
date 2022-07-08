@@ -33,6 +33,7 @@
     </group>
 
     <!--Run bag-->
+    <node pkg="rosbag" type="record" name="rosbag" args="-O $(find exam)/$(arg bag_name) cmd_vel" required="true"/>
     <!-- <node pkg="rosbag" type="record" name="rosbag" args="-O $(find exam)/$(arg bag_name) -a -x '(.*)/(scan|camera|particlecloud)(.*)'" required="true"/>
      -->
      
@@ -65,7 +66,7 @@
     <param name="~min_split_dist" value="0.04" />
     <param name="~outlier_dist" value="0.06" />
     <param name="~min_line_points" value="3" />
-  </node> -->
+  </node>  -->
 
     <!-- run application node -->
     <node name="navigation_node" pkg="exam" type="main.py" args="-num_path $(arg num_path) -run_aip $(arg run_aip)" output="screen" required="true">

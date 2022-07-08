@@ -102,7 +102,7 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
         pose_stamped_with_covariance.pose = pose_with_covariance
         return pose_stamped_with_covariance
 
-    def compute_wp_orientation(current_wp:list, next_wp:list) -> float:
+    def compute_wp_orientation(current_wp:list, next_wp:list, previous_wp:list) -> float:
         """Compute the orientation to give to the current waypoint with respect to the next waypoint
         
         Parameters
@@ -163,8 +163,8 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
             map_data = np.reshape(np.array(map.data), (map.info.height, map.info.width))
             rospy.logdebug(f"Map shape: {np.shape(map_data)}")
             if axis == 'y':
-                rospy.loginfo(f"Aligned pixels {current_px}, {next_px}")
-                rospy.loginfo(f"{current_px[1]} - {next_px[1]}")
+                rospy.logdebug(f"Aligned pixels {current_px}, {next_px}")
+                rospy.logdebug(f"{current_px[1]} - {next_px[1]}")
                 map_slice = None
                 if current_px[1] > next_px[1]:
                     map_slice = map_data[int(next_px[1]):int(current_px[1])+1, int(current_px[0])]
@@ -177,7 +177,7 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
             elif axis == 'xy':
                 # check for obstacle in submatrix with coordinates current_px and next_px
                 map_slice = None
-                rospy.loginfo(f"Map slice over {current_px} - {next_px}")
+                rospy.logdebug(f"Map slice over {current_px} - {next_px}")
                 if current_px[0] > next_px[0]:
                     col_slice = map_data[:, int(next_px[0]):int(current_px[0])+1]
                 else:
@@ -198,19 +198,16 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
                     # check submatrix diagonal 
                     for i in range(n):
                         if map_slice[i][i] > 60:
-                            rospy.loginfo("\n######### Ostacolo nella diagonale")
                             return True 
 
                     # check the remaining path
                     if row > col:
                         for i in range (row-col):
                             if map_slice[i + col -1][col-1] > 60:
-                                rospy.loginfo("\n######### Ostacolo 1")
                                 return True 
                     else:
                         for i in range (col-row):
                             if map_slice[row-1][row+i-1] > 60:
-                                rospy.loginfo("\n######### Ostacolo 2")
                                 return True 
 
 
@@ -222,23 +219,19 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
                         i = 0
                         for j in range(col-1, -1, -1):
                             if map_slice[i][j] > 60:
-                                rospy.loginfo("\n######### Ostacolo 2")
                                 return True 
                             i = i + 1 
                         for i in range (row-col, row):
                             if map_slice[i][0] > 60:
-                                rospy.loginfo("\n######### Ostacolo 2")
                                 return True 
                     else:
                         i = 0
                         for j in range(col-1, n-1, -1):
                             if map_slice[i][j] > 60:
-                                rospy.loginfo("\n######### Ostacolo 2")
                                 return True 
                             i = i + 1 
                         for i in range (col-row, 0, -1):
                             if map_slice[row-1][i-1] > 60:
-                                rospy.loginfo("\n######### Ostacolo 2")
                                 return True 
 
 
@@ -246,19 +239,16 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
                     #bottom-right
                     for i in range(n):
                          if map_slice[row-1-i][col-1-i] > 60:
-                                rospy.loginfo("\n######### Ostacolo 2")
                                 return True 
                     
                         
                     if row > col:
                         for i in range(row-col, -1, -1):
                              if map_slice[row-col-i][0] > 60:
-                                rospy.loginfo("\n######### Ostacolo 2")
                                 return True 
                     else:
                         for i in range (col-row-1, -1, -1):
                          if map_slice[0][i]> 60:
-                                rospy.loginfo("\n######### Ostacolo 2")
                                 return True 
                         
 
@@ -267,24 +257,16 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
                     #bottom-left
                     for i in range (n):
                         if map_slice[row-i-1][i] > 60:
-                            rospy.loginfo("\n######### Ostacolo 2")
                             return True 
                     if row > col:
                         for i in range (row-col-1, -1, -1):
                             if map_slice[i][col-1] > 60:
-                                rospy.loginfo("\n######### Ostacolo 2")
                                 return True 
                     else:
                         for i in range (col-row-1, col, 1) > 60:
                             if map_slice[0][i]:
-                                rospy.loginfo("\n######### Ostacolo 2")
                                 return True 
                         
-
-                                    
-                
-                rospy.loginfo("\n######### Nessun Ostacolo")
-                
 
                 # for i in range(np.shape(map_slice)[0]):
                 #     for j in range(np.shape(map_slice)[1]):
@@ -304,28 +286,55 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
         if (x_next <= x_current + 0.15) and (x_next >= x_current - 0.15):
             # the waypoints are aligned along the x-direction
             # check for the presence of an obstacle 
-            rospy.loginfo(f"Current wp {current_wp} - Next wp {next_wp}")
             if check_obstacles(current_wp=current_wp, next_wp=next_wp, axis='y'):
                 # the waypoints are separed by an obstacle
-                rospy.loginfo("Obstacle detected")
-                orientation = math.pi
+                diff_vector = np.subtract(np.array(current_wp), np.array(previous_wp[:2]))
+                relative_orientation = np.arctan2(diff_vector[1], diff_vector[0])
+                if (relative_orientation >= math.pi/2 and relative_orientation <= math.pi) or \
+                    (relative_orientation <= -math.pi/2 and relative_orientation >= -math.pi) : 
+                    orientation = math.pi
+                elif (relative_orientation >= 0 and relative_orientation < math.pi/2) or \
+                     (relative_orientation <= 0  and relative_orientation > -math.pi/2): 
+                    orientation = 0.0
             else:
                 # the waypoints are connected
-                rospy.loginfo("Obstacle not detected")
                 if y_next > y_current:
                     orientation = math.pi/2
                 elif y_next < y_current:
                     orientation = -math.pi/2
         elif (x_next > x_current) or (x_next < x_current):
             if check_obstacles(current_wp=current_wp, next_wp=next_wp, axis='xy'):          
-                if (x_next > x_current):
-                    # the next wp is above the current wp
-                    # set the orientation to zero
-                    orientation = 0.0
-                elif (x_next < x_current):
-                    # the next wp is above the current wp
-                    # set the orientation to zero
-                    orientation = math.pi
+                    # there is an obstacle and the points are not alligned 
+                    diff_vector = np.subtract(np.array(next_wp), np.array(current_wp))
+                    relative_orientation = np.arctan2(diff_vector[1], diff_vector[0])
+                    print(f"---- {relative_orientation} ------")
+                    if abs(diff_vector[1]) < 7 and previous_wp != None:
+                        # the waypoints are not on two parallel corridors
+                        if (relative_orientation > 0.0 and relative_orientation < math.pi/6)  or \
+                        (relative_orientation < 0.0 and relative_orientation > -math.pi/6)  : 
+                            orientation = 0.0 
+                        elif (relative_orientation > math.pi/6 and relative_orientation < (8*math.pi)/9): 
+                            orientation = math.pi/2 
+                        elif (relative_orientation < -math.pi/6 and relative_orientation > -(8*math.pi)/9): 
+                            orientation = -math.pi/2 
+                        elif (relative_orientation > ((8*math.pi)/9) and relative_orientation < math.pi) or \
+                            (relative_orientation < -((8*math.pi)/9) and relative_orientation > -math.pi)   : 
+                            orientation = math.pi
+                    elif abs(diff_vector[1]) > 7 and previous_wp != None:
+                        # waypoints sapareted by the corridor
+                        orientation = previous_wp[2]
+                    elif previous_wp == None:
+                        # the waypoints are not on two parallel corridors
+                        if (relative_orientation > 0.0 and relative_orientation < math.pi/4)  or \
+                        (relative_orientation < 0.0 and relative_orientation > -math.pi/4)  : 
+                            orientation = 0.0 
+                        elif (relative_orientation > math.pi/4 and relative_orientation < (3*math.pi)/4): 
+                            orientation = math.pi/2 
+                        elif (relative_orientation < -math.pi/4 and relative_orientation > -(3*math.pi)/4): 
+                            orientation = -math.pi/2 
+                        elif (relative_orientation > ((3*math.pi)/4) and relative_orientation < math.pi) or \
+                            (relative_orientation < -((3*math.pi)/4) and relative_orientation > -math.pi)   : 
+                            orientation = math.pi
             else:
                 # the points are connected
                 # compute the difference vector between the current and next wp
@@ -347,13 +356,14 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
                 goal_wp = [float(row[0]), float(row[1]), 0.0]
             else:
                 # compute the orientation for the previous wp based on the current wp
-                wp_angle = compute_wp_orientation(previous_wp, [float(row[0]), float(row[1])])
+                wp_angle = compute_wp_orientation(previous_wp, [float(row[0]), float(row[1])], 
+                                                  waypoints[-2] if len(waypoints)>=2 else None)
                 waypoints[-1][2] = wp_angle
                 waypoints.append([float(row[0]), float(row[1]), 0.0])
                 previous_wp = [float(row[0]), float(row[1])]
         
         # compute the orientation for the last wp before the goal
-        wp_angle = compute_wp_orientation(previous_wp, [goal_wp[0],goal_wp[1]])
+        wp_angle = compute_wp_orientation(previous_wp, [goal_wp[0],goal_wp[1]], waypoints[-2])
         waypoints[-1][2] = wp_angle
         waypoints.append(goal_wp)
         waypoints[-1][2] = wp_angle
@@ -394,7 +404,7 @@ def create_markers(waypoints):
 
         marker.color.r, marker.color.g, marker.color.b = (0, 1, 0)
         marker.color.a = 1
-        marker.scale.x, marker.scale.y, marker.scale.z = (0.5, 0.1, 0.1)
+        marker.scale.x, marker.scale.y, marker.scale.z = (0.4, 0.1, 0.1)
         marker_array.markers.append(marker)
 
     # set markers id
@@ -603,7 +613,7 @@ def get_laser_scan(laser_scan_topic: str):
 
     for indx, _ in enumerate(ranges):
         if ranges[indx] == 0.0 and intensities[indx] == 0.0:
-            ranges[indx] = math.inf
+            ranges[indx] = 10
         elif ranges[indx] == 0.0 and intensities[indx] != 0.0:     
             ranges[indx] = np.NaN
     return ranges

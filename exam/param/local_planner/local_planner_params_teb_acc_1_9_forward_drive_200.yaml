@@ -59,13 +59,13 @@ TebLocalPlannerROS:
  weight_optimaltime: 1 # 2
  weight_shortest_path: 5
  weight_obstacle: 50
- weight_viapoint: 1
+ weight_viapoint: 0 #1
  weight_dynamic_obstacle: 10 # not in use yet
  alternative_time_cost: False # not in use yet
 
 
  # Trajectory
- global_plan_viapoint_sep: 0.5
+ global_plan_viapoint_sep: -1 #0.5
 
  # Homotopy Class Planner
 

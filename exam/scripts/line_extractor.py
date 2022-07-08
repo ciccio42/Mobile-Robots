@@ -11,7 +11,7 @@ from std_msgs.msg import ColorRGBA
 from geometry_msgs.msg import Point
 
 MAP_RESOLUTION = 0.05
-plot = False
+plot = True
 
 # get the folder path 
 """dir_path = os.path.dirname(os.path.abspath(__file__))
@@ -96,6 +96,19 @@ def filter_lines(polar_coordinates: np.array) -> np.array:
     return np.delete(polar_coordinates, similar_flag_indx, 0)
 
 def publish_points(x: np.array, y: np.array, reference_frame: str):
+    """Publish the points (x,y) as Marker, with respect to reference_frame
+
+    Parameters
+    ----------
+        x: np.array
+            Numpy array of x-coordinate
+        y: np.array
+            Numpy array of y-coordinate
+        reference_frame: str
+            Name of the reference frame with respect to which plot the points
+    Returns
+    -------
+    """
     # create Marker Array Publisher
     marker = Marker()
     # marker header 
@@ -120,7 +133,18 @@ def publish_points(x: np.array, y: np.array, reference_frame: str):
         extracted_points_pub.publish(marker)
         rate.sleep()
 
-def publish_lines(lines, reference_frame):
+def publish_lines(lines, reference_frame: str):
+    """Publish the extracted lines as MarkerArray, with respect to reference_frame
+
+    Parameters
+    ----------
+        lines: list
+            list of extracted lines in polar coordinates
+        reference_frame: str
+            Name of the reference frame with respect to which plot the lines
+    Returns
+    -------
+    """
     # create Marker Array Publisher
     marker_array = MarkerArray()
     marker_array.markers = []
@@ -198,8 +222,11 @@ def main(default_file = None):
     
     if plot:
         cv.imshow("Source", src_gaussian)
-        cv.imshow("Detected Lines (in red) - Standard Hough Line Transform", cdst)
+        cv.imwrite(os.path.join(map_dir_path, "gaussian_map.jpg"), src_gaussian)
+        cv.imshow("Canny edge detection", cdst)
+        cv.imwrite(os.path.join(map_dir_path, "canny_edge.jpg"), cdst)
         cv.imshow("Detected Lines (in red) - Probabilistic Line Transform", cdstP)
+        cv.imwrite(os.path.join(map_dir_path, "extracted_lines.jpg"), cdstP)
         cv.waitKey(0)
 
     # convert points from pixel to continuos space
@@ -254,10 +281,11 @@ def main(default_file = None):
         polar_coordiantes[i][1] = theta
         rospy.logdebug(f"Rho {rho} - Theta {theta}\n")
 
+    rospy.loginfo(f"Number of lines: {len(linesP)}")
     polar_coordiantes = filter_lines(polar_coordiantes)
     publish_lines(polar_coordiantes[:10], reference_frame = "world")
     rospy.logdebug(f"Filtered lines\n{polar_coordiantes}")
-    rospy.logdebug(f"Remaining lines {np.size(polar_coordiantes)}")
+    rospy.loginfo(f"Remaining lines {np.size(polar_coordiantes)}")
     np.save(os.path.join(conf_dir_path , "map_lines.npy"), polar_coordiantes)
     
     return 0

@@ -37,15 +37,15 @@ args, unknown = parser.parse_known_args()
 # Mean initialization error
 initialization_error_mean = 0.0
 # STD DEV initialization error
-initialization_error_std_dev_x = 0.3 # m
-initialization_error_std_dev_y = 0.3 # m
+initialization_error_std_dev_x = 0.05 # m^2
+initialization_error_std_dev_y = 0.05 # m^2
 initialization_error_std_dev_yaw = math.pi/4 # rad
 
 # Covariance threshold for initial localization
-COVARIANCE_X_THRESHOLD = 2e-2 # m^2
-COVARIANCE_Y_THRESHOLD = 2e-2 # m^2
+COVARIANCE_X_THRESHOLD = 1e-1 # m^2
+COVARIANCE_Y_THRESHOLD = 1e-1 # m^2
 COVARIANCE_YAW_THRESHOLD = 0.1 # rad^2
-TIME_LIMIT_FOR_INITIAL_LOCALIZATION = (2*math.pi)*2 # The time required to complete one rotation around the z-axis
+TIME_LIMIT_FOR_INITIAL_LOCALIZATION = (2*math.pi)#*2 # The time required to complete one rotation around the z-axis
 
 # waypoints file path
 path_file_path = os.path.join(pkg_path, f"config/path_")
@@ -296,7 +296,7 @@ def automatic_localization_precedure():
             max_measure_indx = np.nanargmax(laser_values)
             max_value = laser_values[max_measure_indx]
             rospy.loginfo (f"max: {max_value}, degree: {max_measure_indx}")
-            input("press")
+            input("Press any key to start to align with moving direction")
             # rotate to max measure 
             omega = math.radians(max_measure_indx)/ TIME
             rospy.loginfo(f"Omega: {omega}")
@@ -315,9 +315,9 @@ def automatic_localization_precedure():
                 cmd_vel_pub.publish(cmd_vel)
             cmd_vel.angular.z = 0.0
             cmd_vel_pub.publish(cmd_vel)
-            # take a neighbourhood [-45 45] degrees of the maximum point
+            # take a neighbourhood [-10 10] degrees of the maximum point
             laser_values = utils.get_laser_scan("/scan")
-            N_NEIGHBOURS = 45
+            N_NEIGHBOURS = 10
             neighbourhood_left = laser_values[:N_NEIGHBOURS]
             neighbourhood_right = laser_values[359-N_NEIGHBOURS:359]
             neighbourhood = np.concatenate((neighbourhood_left,neighbourhood_right))
@@ -328,12 +328,12 @@ def automatic_localization_precedure():
                 min_value = neighbourhood[min_measure_indx]
                 # min value could be inf or numerical
                 rospy.loginfo (f"min: {min_value}, degree: {min_measure_indx}")
-                input("press2")
-                if min_value == math.inf:
-                    min_value = 3.15
+                input("Press any key to start to move")
+                if min_value == 10:
+                    min_value = 3.5
 
                 # move to min_value - security threshold
-                utils.trapezoidal_motion(cmd_vel_pub, (min_value-0.30))
+                utils.trapezoidal_motion(cmd_vel_pub, (min_value-0.40))
             except ValueError:
                 # all nans
                 # do nothing
