@@ -446,7 +446,7 @@ if __name__ == '__main__':
     
     if args.run_automatic_initialization_procedure == "True":
         
-        input("Press any key to start the localization of localization:")
+        input("Press any key to start the localization:")
         if automatic_localization_precedure() == True:
             rospy.loginfo("Initial localization has reached convergence")
             rospy.Rate(0.2).sleep()

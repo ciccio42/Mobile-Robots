@@ -366,7 +366,10 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
         wp_angle = compute_wp_orientation(previous_wp, [goal_wp[0],goal_wp[1]], waypoints[-2])
         waypoints[-1][2] = wp_angle
         waypoints.append(goal_wp)
-        waypoints[-1][2] = wp_angle
+        # compute the orientation of the last waypoint
+        diff_vector = np.subtract(np.array(waypoints[-1][:2]), np.array(np.array(waypoints[-2][:2])))
+        relative_orientation = np.arctan2(diff_vector[1], diff_vector[0])
+        waypoints[-1][2] = relative_orientation
         # get the initial pose
         initial_pose = get_initial_pose_csv(waypoints[0])
     return waypoints, initial_pose

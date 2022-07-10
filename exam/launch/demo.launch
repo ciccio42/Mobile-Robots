@@ -11,7 +11,8 @@
     <arg name="global_planner_param_demo" default="NavfnROS" />
     <arg name="local_planner_param_demo" default="DWA" />
     <arg name="bag_name" default="record.bag"/>
-
+    <arg name="record_bag" default="False"/>
+    
     <!--Parameters-->
     <param name="kalman" type="bool" value="False"/>
     <param name="sim" type="bool" value="$(arg sim)" />
@@ -21,8 +22,8 @@
 
   
     <group if="$(arg sim)">
-    <!-- stuff that will only be evaluated if sim is true -->
-    <!--run gazebo-->
+      <!-- stuff that will only be evaluated if sim is true -->
+      <!--run gazebo-->
       <include file="$(find map2gazebo)/launch/turtlebot3_world.launch">        
         <arg name="x_pos" default="$(arg x_pos)"/>
         <arg name="y_pos" default="$(arg y_pos)"/>
@@ -32,11 +33,11 @@
       </include>
     </group>
 
-    <!--Run bag-->
-    <node pkg="rosbag" type="record" name="rosbag" args="-O $(find exam)/$(arg bag_name) cmd_vel" required="true"/>
-    <!-- <node pkg="rosbag" type="record" name="rosbag" args="-O $(find exam)/$(arg bag_name) -a -x '(.*)/(scan|camera|particlecloud)(.*)'" required="true"/>
-     -->
-     
+    <group if="$(arg record_bag)">
+      <!--Run bag if sim true-->
+      <node pkg="rosbag" type="record" name="rosbag" args="-O $(find exam)/$(arg bag_name) -a -x '(.*)/(scan|camera|particlecloud)(.*)'" required="true"/>
+    </group>
+
     <!--run rviz-->
     <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
       <arg name="map_file" value="$(find exam)/maps/map6.yaml" />
@@ -50,26 +51,12 @@
       
     </include>
 
-  <!-- <node name="line_extractor" pkg="laser_line_extraction" type="line_extraction_node">
-    <param name="~frequency" value="30.0" />
-    <param name="~frame_id" value="base_footprint" />
-    <param name="~scan_topic" value="scan" />
-    <param name="~publish_markers" value="true" />
-    <param name="~bearing_std_dev" value="1e-5" />
-    <param name="~range_std_dev" value="0.012" />
-    <param name="~least_sq_angle_thresh" value="0.0001" />
-    <param name="~least_sq_radius_thresh" value="0.0001" />
-    <param name="~max_line_gap" value="0.5" />
-    <param name="~min_line_length" value="0.3" />
-    <param name="~min_range" value="0.5" />
-    <param name="~max_range" value="250.0" />
-    <param name="~min_split_dist" value="0.04" />
-    <param name="~outlier_dist" value="0.06" />
-    <param name="~min_line_points" value="3" />
-  </node>  -->
-
     <!-- run application node -->
     <node name="navigation_node" pkg="exam" type="main.py" args="-num_path $(arg num_path) -run_aip $(arg run_aip)" output="screen" required="true">
+    </node>
+
+    <!-- run application node -->
+    <node name="coastmap_cleaner" pkg="exam" type="coastmap_cleaner.py" output="screen">
     </node>
 
 </launch>

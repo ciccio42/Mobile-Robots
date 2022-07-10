@@ -168,6 +168,7 @@ catkin_install_python(PROGRAMS
   src/main.py
   scripts/KalmanFilter.py
   scripts/line_extractor.py
+  scripts/coastmap_cleaner.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
