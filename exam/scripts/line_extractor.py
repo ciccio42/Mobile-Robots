@@ -29,11 +29,15 @@ def convert_cartesian_to_polar(p1, p2):
 
     Parameters
     ----------
-        p1
-        p2
+        p1: 
+            Starting line point
+        p2:
+            Ending line point
     Returns
-        ray
-        theta
+        ray:
+            Perpendicular distance from origin to line
+        theta:
+            Line Orientation
     -------
     """
     # compute the line parameters a,b,c given the points p1 and p2

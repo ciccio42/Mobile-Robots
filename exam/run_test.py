@@ -4,39 +4,39 @@ from datetime import datetime
 
 dict_test = {}
 
-#dict_test[1] = ["1",      "NavfnROS", "DWA"]
-#dict_test[2] = ["2",      "NavfnROS", "DWA"]
-#dict_test[3] = ["3",      "NavfnROS", "DWA" ]
+dict_test[1] = ["1",      "NavfnROS", "DWA"]
+dict_test[2] = ["2",      "NavfnROS", "DWA"]
+dict_test[3] = ["3",      "NavfnROS", "DWA" ]
 
-#dict_test[4] = ["1",      "NavfnROS", "teb_default"]
-#dict_test[5] = ["2",      "NavfnROS", "teb_default"]
-#dict_test[6] = ["3",      "NavfnROS", "teb_default" ]
+dict_test[4] = ["1",      "NavfnROS", "teb_default"]
+dict_test[5] = ["2",      "NavfnROS", "teb_default"]
+dict_test[6] = ["3",      "NavfnROS", "teb_default" ]
 
-#Global DWA, mpc e teb con A*
-# dict_test[10] = ["1",      "Global", "DWA"]
-# dict_test[11] = ["2",      "Global", "DWA"]
-# dict_test[12] = ["3",      "Global", "DWA" ]
+# Global DWA, e teb con A*
+dict_test[10] = ["1",      "Global", "DWA"]
+dict_test[11] = ["2",      "Global", "DWA"]
+dict_test[12] = ["3",      "Global", "DWA" ]
 
-# dict_test[13] = ["1",      "Global", "teb"]
-# dict_test[14] = ["2",      "Global", "teb"]
-# dict_test[15] = ["3",      "Global", "teb" ]
+dict_test[13] = ["1",      "Global", "teb"]
+dict_test[14] = ["2",      "Global", "teb"]
+dict_test[15] = ["3",      "Global", "teb" ]
 
-# dict_test[13] = ["1",      "Global_A*_default", "teb"]
-# dict_test[14] = ["2",      "Global_A*_default", "teb"]
-# dict_test[15] = ["3",      "Global_A*_default", "teb" ]
+dict_test[13] = ["1",      "Global_A*_default", "teb"]
+dict_test[14] = ["2",      "Global_A*_default", "teb"]
+dict_test[15] = ["3",      "Global_A*_default", "teb" ]
 
-#dict_test[16] = ["1",      "Global_dijkstra_navguide", "teb_acc_0_5"]
-#dict_test[17] = ["2",      "Global_dijkstra_navguide", "teb_acc_0_5"]
-#dict_test[18] = ["3",      "Global_dijkstra_navguide", "teb_acc_0_5" ]
+dict_test[16] = ["1",      "Global_dijkstra_navguide", "teb_acc_0_5"]
+dict_test[17] = ["2",      "Global_dijkstra_navguide", "teb_acc_0_5"]
+dict_test[18] = ["3",      "Global_dijkstra_navguide", "teb_acc_0_5" ]
 
 
-# dict_test[19] = ["1",      "NavfnROS_navguide", "teb_acc_0_5_forward_drive_200"]
-# dict_test[20] = ["2",      "NavfnROS_navguide", "teb_acc_0_5_forward_drive_200"]
-# dict_test[21] = ["3",      "NavfnROS_navguide", "teb_acc_0_5_forward_drive_200" ]
+dict_test[19] = ["1",      "NavfnROS_navguide", "teb_acc_0_5_forward_drive_200"]
+dict_test[20] = ["2",      "NavfnROS_navguide", "teb_acc_0_5_forward_drive_200"]
+dict_test[21] = ["3",      "NavfnROS_navguide", "teb_acc_0_5_forward_drive_200" ]
 
-# dict_test[22] = ["1",      "NavfnROS_navguide", "teb_acc_1_5_forward_drive_200"]
-# dict_test[23] = ["2",      "NavfnROS_navguide", "teb_acc_1_5_forward_drive_200"]
-# dict_test[24] = ["3",      "NavfnROS_navguide", "teb_acc_1_5_forward_drive_200" ]
+dict_test[22] = ["1",      "NavfnROS_navguide", "teb_acc_1_5_forward_drive_200"]
+dict_test[23] = ["2",      "NavfnROS_navguide", "teb_acc_1_5_forward_drive_200"]
+dict_test[24] = ["3",      "NavfnROS_navguide", "teb_acc_1_5_forward_drive_200" ]
 
 dict_test[22] = ["1",      "NavfnROS_navguide", "teb_acc_1_5_forward_drive_200_best"]
 dict_test[23] = ["2",      "NavfnROS_navguide", "teb_acc_1_5_forward_drive_200_best"]

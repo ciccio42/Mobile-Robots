@@ -12,7 +12,8 @@
     <arg name="local_planner_param_demo" default="DWA" />
     <arg name="bag_name" default="record.bag"/>
     <arg name="record_bag" default="False"/>
-    
+    <arg name="run_line_extractor" default="False"/>
+
     <!--Parameters-->
     <param name="kalman" type="bool" value="False"/>
     <param name="sim" type="bool" value="$(arg sim)" />
@@ -38,6 +39,21 @@
       <node pkg="rosbag" type="record" name="rosbag" args="-O $(find exam)/$(arg bag_name) -a -x '(.*)/(scan|camera|particlecloud)(.*)'" required="true"/>
     </group>
 
+    <group if="$(arg run_line_extractor)">
+      <!--Run line_extractor-->
+      <node name="line_extractor" pkg="laser_line_extraction" type="line_extraction_node">
+        <param name="~frequency" value="30.0" />
+        <param name="~frame_id" value="base_footprint" />
+        <param name="~scan_topic" value="scan" />
+        <param name="~publish_markers" value="true" />
+        <param name="~bearing_std_dev" value="1e-5" />
+        <param name="~range_std_dev" value="0.012" />
+        <param name="~min_split_dist" value="0.04" />
+        <param name="~outlier_dist" value="0.06" />
+        <param name="~min_line_points" value="3" />
+      </node> 
+    </group>
+
     <!--run rviz-->
     <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
       <arg name="map_file" value="$(find exam)/maps/map6.yaml" />
@@ -58,5 +74,6 @@
     <!-- run application node -->
     <node name="coastmap_cleaner" pkg="exam" type="coastmap_cleaner.py" output="screen">
     </node>
+
 
 </launch>

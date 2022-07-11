@@ -30,8 +30,8 @@ args, unknown = parser.parse_known_args()
 MEAN = 0.0 # m
 STD_DEV = 0.2 # m 
 CLIP_ON_VARIATION_MOTION_MODEL = 0.4 # correspond to the 95-th percentile
-K_l = 0.001
-K_r = 0.001
+K_l = 0.0001
+K_r = 0.0001
 validation_gate = 3.219 # corresponding to the 80-th percentile of a chi^2 distribution with 2 d.o.f
 # Robot parameters
 WHEEL_DISTANCE = 0.287 # m
@@ -80,8 +80,13 @@ class KalmanFilter:
 
     def _initialize_state(self, state: Odometry, initial_pose: Pose):
         """
+        Perform the state initialization
         Parameters
         ----------
+            state: Odometry
+                Robot state to write
+            initial_pose: Pose
+                Initial Pose to force in state
         Returns
         -------
         """
@@ -601,22 +606,3 @@ if __name__ == '__main__':
     ts = message_filters.TimeSynchronizer([joint_state_sub, line_extractor_sub], 10)
     ts.registerCallback(time_sync_callback)   
     rospy.spin()
-
-
-"""    joint_state = None
-    line_segment_list = None
-
-    while True:
-        try:
-            joint_state = rospy.wait_for_message("/joint_states", JointState, timeout = 0.05)
-            line_segment_list = rospy.wait_for_message("/line_segments", LineSegmentList, timeout = 0.05)
-        except ROSInterruptException:
-            break
-        except ROSException:
-            rospy.loginfo("Timeout excedeed")           
-        finally:
-            time_sync_callback(joint_state=joint_state, line_segment_list=line_segment_list)
-            joint_state = None
-            line_segment_list = None
-            if compute_loss:
-                bag.close()"""
