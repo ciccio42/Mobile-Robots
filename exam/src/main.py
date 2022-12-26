@@ -46,7 +46,7 @@ COVARIANCE_X_THRESHOLD = 1e-1 # m^2
 COVARIANCE_Y_THRESHOLD = 1e-1 # m^2
 COVARIANCE_YAW_THRESHOLD = 0.1 # rad^2
 TIME_LIMIT_FOR_INITIAL_LOCALIZATION = (2*math.pi)#*2 # The time required to complete one rotation around the z-axis
-
+WRITE_WP_TIME = False
 # waypoints file path
 path_file_path = os.path.join(pkg_path, f"config/path_")
 cmd_vel_pub = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
@@ -182,7 +182,8 @@ def go_to_next_wp(wp: list, move_base_client: actionlib.SimpleActionClient, time
     curr_time = rospy.Time.now().secs + (rospy.Time.now().nsecs * 10**-9)
     if result == GoalStatus.SUCCEEDED:
         rospy.loginfo("Waypoint reached")
-        log_file.write(f" ---- Waypoint reached in: {round(curr_time - time, 3)} s")
+        if WRITE_WP_TIME:
+            log_file.write(f" ---- Waypoint reached in: {round(curr_time - time, 3)} s")
         return curr_time, True
     else:
         log_file.write(f"---- Error: {result}")
@@ -473,7 +474,8 @@ if __name__ == '__main__':
     for i, wp in enumerate(waypoints[1:]):
         clear_costmaps_client()
         rospy.loginfo(f"Waypoint number:\n{i}\n{wp}")
-        log_file.write(f"\n\nWaypoint number: {i}\n{wp}")
+        if WRITE_WP_TIME:
+            log_file.write(f"\n\nWaypoint number: {i}\n{wp}")
         curr_time, res = go_to_next_wp(wp=wp, move_base_client=move_base_client, time = curr_time)
         if res == False:
             rospy.logerr("Go to next wp failed. EXIT")

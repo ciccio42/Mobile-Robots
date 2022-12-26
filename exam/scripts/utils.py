@@ -263,8 +263,8 @@ def read_csv_file(path_file) -> Tuple[list, PoseWithCovarianceStamped]:
                             if map_slice[i][col-1] > 60:
                                 return True 
                     else:
-                        for i in range (col-row-1, col, 1) > 60:
-                            if map_slice[0][i]:
+                        for i in range (col-row-1, col, 1):
+                            if map_slice[0][i] > 60:
                                 return True 
                         
 

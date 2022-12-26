@@ -1,0 +1,79 @@
+<launch>
+    <!--Args-->
+    <arg name="x_pos" default="0.0"/>
+    <arg name="y_pos" default="0.0"/>
+    <arg name="yaw_orientation" default="0.0"/>
+    <arg name="odom_topic" default="odom"/>
+    <arg name="num_path" default="test_2" />
+    <arg name="run_aip" default="True" />
+    <arg name="sim" default="True"/>
+    
+    <arg name="global_planner_param_demo" default="NavfnROS" />
+    <arg name="local_planner_param_demo" default="DWA" />
+    <arg name="bag_name" default="record.bag"/>
+    <arg name="record_bag" default="False"/>
+    <arg name="run_line_extractor" default="False"/>
+
+    <!--Parameters-->
+    <param name="kalman" type="bool" value="False"/>
+    <param name="sim" type="bool" value="$(arg sim)" />
+
+    <node pkg="tf" type="static_transform_publisher" 
+          name="my_tf" args="-32.514755 -21.044427 0 0 0 0.0 /map /world 30"/>
+
+  
+    <group if="$(arg sim)">
+      <!-- stuff that will only be evaluated if sim is true -->
+      <!--run gazebo-->
+      <include file="$(find map2gazebo)/launch/turtlebot3_world.launch">        
+        <arg name="x_pos" default="$(arg x_pos)"/>
+        <arg name="y_pos" default="$(arg y_pos)"/>
+        <arg name="z_pos" default="0.0"/>
+        <arg name="yaw" default="$(arg yaw_orientation)"/>
+        <arg name="gui" default="false"/>
+      </include>
+    </group>
+
+    <group if="$(arg record_bag)">
+      <!--Run bag if sim true-->
+      <node pkg="rosbag" type="record" name="rosbag" args="-O $(find exam)/$(arg bag_name) -a -x '(.*)/(scan|camera|particlecloud)(.*)'" required="true"/>
+    </group>
+
+    <group if="$(arg run_line_extractor)">
+      <!--Run line_extractor-->
+      <node name="line_extractor" pkg="laser_line_extraction" type="line_extraction_node">
+        <param name="~frequency" value="30.0" />
+        <param name="~frame_id" value="base_footprint" />
+        <param name="~scan_topic" value="scan" />
+        <param name="~publish_markers" value="true" />
+        <param name="~bearing_std_dev" value="1e-5" />
+        <param name="~range_std_dev" value="0.012" />
+        <param name="~min_split_dist" value="0.04" />
+        <param name="~outlier_dist" value="0.06" />
+        <param name="~min_line_points" value="3" />
+      </node> 
+    </group>
+
+    <!--run rviz-->
+    <include file="$(find exam)/launch/turtlebot3_navigation.launch" >
+      <arg name="map_file" value="$(find exam)/maps/map6.yaml" />
+      <arg name="odometry_topic" value="$(arg odom_topic)" />
+      <arg name="global_planner_param_turtlebot3_world" value="$(arg global_planner_param_demo)"/>
+      <arg name="local_planner_param_turtlebot3_world" value="$(arg local_planner_param_demo)"/>
+
+     <arg name="initial_pose_x" default="$(arg x_pos)"/>
+      <arg name="initial_pose_y" default="$(arg y_pos)"/>
+      <arg name="initial_pose_a" default="$(arg yaw_orientation)"/>
+      
+    </include>
+
+    <!-- run application node -->
+    <node name="navigation_node" pkg="exam" type="main.py" args="-num_path $(arg num_path) -run_aip $(arg run_aip)" output="screen" required="true">
+    </node>
+
+    <!-- run application node -->
+    <node name="coastmap_cleaner" pkg="exam" type="coastmap_cleaner.py" output="screen">
+    </node>
+
+
+</launch>

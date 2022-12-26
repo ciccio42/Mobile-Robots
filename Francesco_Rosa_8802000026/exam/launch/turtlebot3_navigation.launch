@@ -1,0 +1,44 @@
+<launch>
+    <!-- Arguments -->
+    <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
+    <arg name="map_file" default="$(find turtlebot3_navigation)/maps/map.yaml"/>
+    <arg name="open_rviz" default="true"/>
+    <arg name="odometry_topic" default="odom" />
+    <arg name="global_planner_param_turtlebot3_world" default="Global" />
+    <arg name="local_planner_param_turtlebot3_world" default="DWA" />
+
+
+    <!-- AMCL Initial Pose arguments-->
+    <arg name="initial_pose_x" default="0.0"/>
+    <arg name="initial_pose_y" default="0.0"/>
+    <arg name="initial_pose_a" default="0.0"/>
+
+    <!-- Turtlebot3 -->
+    <include file="$(find turtlebot3_bringup)/launch/turtlebot3_remote.launch">
+        <arg name="model" value="$(arg model)" />
+    </include>
+
+    <!-- Map server -->
+    <node pkg="map_server" name="map_server" type="map_server" args="$(arg map_file)"/>
+
+    <!-- AMCL -->
+    <include file="$(find exam)/launch/amcl.launch">
+        <arg name="initial_pose_x" default="$(arg initial_pose_x)"/>
+        <arg name="initial_pose_y" default="$(arg initial_pose_y)"/>
+        <arg name="initial_pose_a" default="$(arg initial_pose_a)"/>
+    </include>
+
+    <!-- move_base -->
+    <include file="$(find exam)/launch/move_base.launch">
+    <arg name="model" value="$(arg model)" />
+    <arg name="odom_topic" value="$(arg odometry_topic)"/>
+    <arg name="global_planner_param" value="$(arg global_planner_param_turtlebot3_world)"/>
+    <arg name="local_planner_param" value="$(arg local_planner_param_turtlebot3_world)"/>
+
+    </include>
+
+    <!-- rviz -->
+    <group if="$(arg open_rviz)">
+        <node pkg="rviz" type="rviz" name="rviz" required="true" args="-d $(find exam)/rviz/turtlebot3_navigation.rviz"/>
+    </group>
+</launch>

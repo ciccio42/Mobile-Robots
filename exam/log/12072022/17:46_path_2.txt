@@ -1,0 +1,7 @@
+Localization Error--> x: 1.9181707519587547 - y: 0.027443704007474683Start Simulation. 
+Start point: [-21.89, 0.0, -0.021934324460536277] - Goal point: [-22.55, -4.19, 1.6944559111616848]
+
+
+Start time: 1657640895.17259
+
+Goal reached in: 3.0 m 16 s

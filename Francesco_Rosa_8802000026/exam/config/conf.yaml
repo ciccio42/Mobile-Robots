@@ -1,0 +1,2 @@
+# create a sequence of waypoits [x,y,theta], with respect to map
+initial_pose: [-2.0, -0.5, 0.0]
